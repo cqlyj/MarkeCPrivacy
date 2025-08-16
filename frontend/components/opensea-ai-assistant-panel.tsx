@@ -12,11 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  getAuthToken,
-  useDynamicContext,
-  useIsLoggedIn,
-} from "@dynamic-labs/sdk-react-core";
+import { getAuthToken, useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import {
   Search,
   Send,
@@ -54,7 +50,6 @@ export default function OpenSeaAIAssistantPanel({
   projectId,
 }: OpenSeaAIAssistantPanelProps) {
   const { user } = useDynamicContext();
-  const isLoggedIn = useIsLoggedIn();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -108,17 +103,7 @@ Ask me about teams, NFT portfolios, wallet analysis, or trending collections.`,
     setIsLoading(true);
 
     try {
-      // Check if user is authenticated first
-      if (!isLoggedIn || !user) {
-        throw new Error("Please authenticate first");
-      }
-
       const token = getAuthToken();
-      if (!token) {
-        throw new Error(
-          "Authentication token not available. Please try again."
-        );
-      }
 
       const payload: any = {
         action,
@@ -140,13 +125,16 @@ Ask me about teams, NFT portfolios, wallet analysis, or trending collections.`,
         payload.projectId = projectId;
       }
 
-      // Use the OpenSea agent endpoint
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch("/api/opensea-agent/message", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify(payload),
       });
 
@@ -251,7 +239,7 @@ Ask me about teams, NFT portfolios, wallet analysis, or trending collections.`,
                 variant="outline"
                 size="sm"
                 onClick={() => sendMessage(qa.action)}
-                disabled={isLoading || !isLoggedIn || !user}
+                disabled={isLoading}
                 className="h-8 text-xs"
               >
                 <qa.icon className="h-3 w-3 mr-1" />
@@ -337,18 +325,14 @@ Ask me about teams, NFT portfolios, wallet analysis, or trending collections.`,
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder={
-                !isLoggedIn || !user
-                  ? "Please authenticate first..."
-                  : "Ask about teams, NFTs, trends, or wallet analysis..."
-              }
-              disabled={isLoading || !isLoggedIn || !user}
+              placeholder="Ask about teams, NFTs, trends, or wallet analysis..."
+              disabled={isLoading}
               className="flex-1"
             />
             <Button
               type="submit"
               size="sm"
-              disabled={isLoading || !inputValue.trim() || !isLoggedIn || !user}
+              disabled={isLoading || !inputValue.trim()}
               className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
             >
               <Send className="h-4 w-4" />
