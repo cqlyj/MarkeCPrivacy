@@ -7,9 +7,11 @@ import DynamicEmbeddedWidget from "@/components/dynamic/dynamic-embedded-widget"
 interface AuthGuardProps {
   children: React.ReactNode;
   mode: "email-only" | "wallet-only";
+  /** Optional custom title shown in the auth prompt (defaults based on mode). */
+  title?: string;
 }
 
-export default function AuthGuard({ children, mode }: AuthGuardProps) {
+export default function AuthGuard({ children, mode, title }: AuthGuardProps) {
   const isLoggedIn = useIsLoggedIn();
   const { user, primaryWallet, handleLogOut } = useDynamicContext();
   const [authState, setAuthState] = useState<
@@ -85,7 +87,7 @@ export default function AuthGuard({ children, mode }: AuthGuardProps) {
       <div className="max-w-md w-full space-y-4">
         {mode === "email-only" && (
           <div className="text-center space-y-2 mb-6">
-            <h1 className="text-2xl font-semibold">Judge Panel</h1>
+            <h1 className="text-2xl font-semibold">{title || "Judge Panel"}</h1>
             <p className="text-muted-foreground">
               Please sign in with your authorized email address
             </p>
@@ -93,9 +95,11 @@ export default function AuthGuard({ children, mode }: AuthGuardProps) {
         )}
         {mode === "wallet-only" && (
           <div className="text-center space-y-2 mb-6">
-            <h1 className="text-2xl font-semibold">Submit Project</h1>
+            <h1 className="text-2xl font-semibold">
+              {title || "Connect Wallet"}
+            </h1>
             <p className="text-muted-foreground">
-              Connect your wallet to submit your project
+              Connect your wallet to continue
             </p>
           </div>
         )}
