@@ -1,17 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useDynamicContext } from "@/lib/dynamic";
 import { Button, Input, Textarea } from "@/components/ui";
 import AuthGuard from "@/components/auth-guard";
 
 interface SuccessResponse {
+  success: boolean;
   txHash: string;
   tokenId: string;
+  ipfsURI: string;
+  imageURI?: string;
 }
+
+// Static NFT image CID for all teams
+const STATIC_NFT_IMAGE_CID =
+  "bafkreige4yaxddcbzfxqrmtr5uvkf5alhskzjkxlcornoe4liujopdpzve";
 
 export default function SubmitPage() {
   const { primaryWallet, handleLogOut } = useDynamicContext();
+  const router = useRouter();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -22,6 +32,16 @@ export default function SubmitPage() {
 
   const walletAddress = primaryWallet?.address ?? "";
 
+  // Redirect to leaderboard after successful submission
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        router.push("/leaderboard");
+      }, 3000); // 3 seconds to show success message
+      return () => clearTimeout(timer);
+    }
+  }, [success, router]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -31,20 +51,8 @@ export default function SubmitPage() {
       const payload = {
         name,
         description,
-        image:
-          "https://ethglobal.b-cdn.net/events/newyork2025/square-logo/default.png", // TODO: replace with real image if needed
         project_url: projectUrl,
-        attributes: [
-          { trait_type: "Team ID", value: walletAddress },
-          { trait_type: "Finalist", value: "No" },
-          { trait_type: "Members", value: walletAddress },
-          { trait_type: "Technology", value: "" },
-          { trait_type: "Completion", value: "" },
-          { trait_type: "UI/UX", value: "" },
-          { trait_type: "Adoption/Practicality", value: "" },
-          { trait_type: "Originality", value: "" },
-          { trait_type: "Total Score", value: "" },
-        ],
+        submitter: walletAddress,
       };
 
       const res = await fetch("/api/submit", {
@@ -53,9 +61,13 @@ export default function SubmitPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Submission failed");
-
-      const data: SuccessResponse = await res.json();
+      const data: SuccessResponse | { success: false; error?: string } =
+        await res.json();
+      if (!res.ok || !("success" in data) || !data.success) {
+        const errMsg =
+          (data as { error?: string })?.error || "Submission failed";
+        throw new Error(errMsg);
+      }
       setSuccess(data);
     } catch (err) {
       console.error(err);
@@ -70,9 +82,9 @@ export default function SubmitPage() {
       <AuthGuard mode="wallet-only">
         <div className="flex min-h-svh items-center justify-center p-6">
           <div className="max-w-md w-full space-y-6 text-center">
-            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto">
               <svg
-                className="w-8 h-8 text-green-600 dark:text-green-400"
+                className="w-10 h-10 text-green-600 dark:text-green-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -85,38 +97,55 @@ export default function SubmitPage() {
                 />
               </svg>
             </div>
-            <h1 className="text-2xl font-bold text-green-600 dark:text-green-400">
-              Submission Successful!
-            </h1>
-            <div className="space-y-3 text-sm">
-              <p className="font-medium">Project: {name}</p>
-              <p className="break-all">
-                <span className="text-muted-foreground">Team ID:</span>{" "}
-                <span className="font-mono text-xs">{walletAddress}</span>
+
+            <div className="space-y-4">
+              <h1 className="text-3xl font-bold text-green-600 dark:text-green-400">
+                Success!
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Your project &ldquo;{name}&rdquo; has been submitted and NFT
+                minted successfully!
               </p>
-              <p className="break-all">
-                <span className="text-muted-foreground">Transaction:</span>{" "}
-                <a
-                  href={`https://etherscan.io/tx/${success.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline text-primary hover:text-primary/80 font-mono text-xs"
-                >
-                  {success.txHash.slice(0, 10)}...{success.txHash.slice(-8)}
-                </a>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Token ID:</span>{" "}
-                {success.tokenId}
-              </p>
+
+              {/* Quick NFT preview */}
+              <div className="flex justify-center my-6">
+                <div className="border-2 border-green-200 dark:border-green-800 rounded-lg p-2 bg-white dark:bg-gray-900">
+                  <Image
+                    src={`https://ipfs.io/ipfs/${STATIC_NFT_IMAGE_CID}`}
+                    alt="Team NFT"
+                    width={150}
+                    height={150}
+                    className="rounded-md w-32 h-32 object-cover"
+                    priority
+                  />
+                </div>
+              </div>
+
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p>Token ID: #{success.tokenId}</p>
+                <p>Redirecting to leaderboard in 3 seconds...</p>
+              </div>
+
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <div
+                  className="w-2 h-2 bg-green-500 rounded-full animate-pulse"
+                  style={{ animationDelay: "0.2s" }}
+                ></div>
+                <div
+                  className="w-2 h-2 bg-green-500 rounded-full animate-pulse"
+                  style={{ animationDelay: "0.4s" }}
+                ></div>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => router.push("/leaderboard")}
+                className="mt-4"
+              >
+                Go to Leaderboard Now
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => (window.location.href = "/")}
-              className="mt-6"
-            >
-              Back to Home
-            </Button>
           </div>
         </div>
       </AuthGuard>
