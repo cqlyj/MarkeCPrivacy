@@ -72,6 +72,13 @@ export async function GET(request: NextRequest) {
 
     try {
       if (mode === "judging") {
+        const competitionStatus = await SupabaseService.getCompetitionStatus();
+        if (!competitionStatus.judgingStarted) {
+          return NextResponse.json(
+            { error: "Judging has not started yet" },
+            { status: 403 }
+          );
+        }
         // Get projects for judges (with fully_judged status)
         const projects = await SupabaseService.getJudgeProjects();
         console.log(
