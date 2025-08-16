@@ -68,8 +68,6 @@ export default function AIAssistantPanel({
         content: project
           ? `Hello! I'm your AI assistant for evaluating **"${project.name}"**.
 
-I have full access to the project details and can help you with analysis, scoring guidance, technical insights, and any questions you have. Just ask me anything!
-
 Try: "Analyze this project" or "How should I score this?" or any other question you have.`
           : "Hello! I'm your UnifiedDJ AI assistant. I can help you with project analysis, judging criteria, and answer any questions you have. How can I assist you today?",
         isUser: false,
