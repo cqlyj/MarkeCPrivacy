@@ -47,21 +47,6 @@ export default function AdminPage() {
           winnersAnnounced: !!data.status.winnersAnnounced,
         };
 
-        // If judging hasn't officially started yet, infer from existing submissions
-        if (!inferred.judgingStarted) {
-          try {
-            const projRes = await fetch("/api/projects?mode=public");
-            const projData = await projRes.json();
-            if (projData?.success && Array.isArray(projData.projects)) {
-              if (projData.projects.length > 0) {
-                inferred.judgingStarted = true;
-              }
-            }
-          } catch (e) {
-            console.error("Failed to infer judging status", e);
-          }
-        }
-
         setStatus(inferred);
       }
     } catch (err) {
@@ -79,15 +64,26 @@ export default function AdminPage() {
       const data = await res.json();
       if (data?.success) {
         setProjects(
-          (data.projects || []).map((p: any) => ({
-            id: p.id,
-            teamId: p.teamId,
-            name: p.name,
-            description: p.description,
-            totalScore: p.scores?.total ?? null,
-            isTop20: p.isTop20,
-            project_url: p.project_url, // Added for new button
-          }))
+          (data.projects || []).map((p: unknown) => {
+            const proj = p as {
+              id: string;
+              teamId: number;
+              name: string;
+              description: string;
+              scores?: { total?: number };
+              isTop20: boolean;
+              project_url: string;
+            };
+            return {
+              id: proj.id,
+              teamId: proj.teamId,
+              name: proj.name,
+              description: proj.description,
+              totalScore: proj.scores?.total ?? null,
+              isTop20: proj.isTop20,
+              project_url: proj.project_url,
+            };
+          })
         );
       }
     } catch (err) {
@@ -115,15 +111,7 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "start_judging" }),
       });
-      setStatus((prev) =>
-        prev
-          ? { ...prev, judgingStarted: true }
-          : {
-              judgingStarted: true,
-              judgingEnded: false,
-              winnersAnnounced: false,
-            }
-      );
+      await fetchStatus();
     } catch (err) {
       console.error(err);
     }
@@ -143,7 +131,7 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "update_top20" }),
       });
-      setStatus((prev) => (prev ? { ...prev, judgingEnded: true } : prev));
+      await fetchStatus();
       fetchProjects();
     } catch (err) {
       console.error(err);
@@ -287,18 +275,23 @@ export default function AdminPage() {
                           </a>
                         </Button>
 
-                        {project.isTop20 ? (
-                          <Button size="sm" variant="outline" disabled>
-                            Finalist ✅
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            onClick={() => toggleTop20(project.id, true)}
-                          >
-                            <Check className="h-4 w-4" /> Add to Finalist
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            toggleTop20(project.id, !project.isTop20)
+                          }
+                          variant={project.isTop20 ? "outline" : "default"}
+                        >
+                          {project.isTop20 ? (
+                            <>
+                              <X className="h-4 w-4" /> Remove Finalist
+                            </>
+                          ) : (
+                            <>
+                              <Check className="h-4 w-4" /> Add to Finalist
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
