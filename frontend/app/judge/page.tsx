@@ -47,6 +47,11 @@ export default function JudgePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "judged">("pending");
+  const [competitionStatus, setCompetitionStatus] = useState<{
+    judgingStarted?: boolean;
+    judgingEnded?: boolean;
+    winnersAnnounced?: boolean;
+  } | null>(null);
 
   // Separate projects into categories
   const pendingProjects = projects.filter((p) => !p.isJudged);
@@ -64,7 +69,8 @@ export default function JudgePage() {
     const judgedProjects = JSON.parse(
       localStorage.getItem("judgedProjects") || "{}"
     );
-    judgedProjects[projectId] = now;
+    // Always save using a string key to avoid number/string mismatches
+    judgedProjects[projectId.toString()] = now;
     localStorage.setItem("judgedProjects", JSON.stringify(judgedProjects));
 
     setProjects((prev) =>
@@ -85,6 +91,22 @@ export default function JudgePage() {
       setActiveTab("judged");
     }
   };
+
+  // Fetch competition status
+  useEffect(() => {
+    async function fetchCompetitionStatus() {
+      try {
+        const response = await fetch("/api/admin?action=competition_status");
+        if (response.ok) {
+          const data = await response.json();
+          setCompetitionStatus(data.status);
+        }
+      } catch (error) {
+        console.error("Failed to fetch competition status:", error);
+      }
+    }
+    fetchCompetitionStatus();
+  }, []);
 
   // Fetch projects when user is authenticated
   useEffect(() => {
@@ -125,17 +147,24 @@ export default function JudgePage() {
         const judgedProjects = JSON.parse(
           localStorage.getItem("judgedProjects") || "{}"
         );
-        fetchedProjects = fetchedProjects.map((p) => ({
-          ...p,
-          isJudged: !!judgedProjects[p.id],
-          judgedAt: judgedProjects[p.id] || undefined,
-        }));
+        // Normalize keys to strings to ensure consistent look-ups regardless of
+        // whether Supabase returns numeric or string IDs.
+        fetchedProjects = fetchedProjects.map((p: ProjectData) => {
+          const key = p.id?.toString();
+          return {
+            ...p,
+            isJudged: !!judgedProjects[key],
+            judgedAt: judgedProjects[key] || undefined,
+          };
+        });
 
         setProjects(fetchedProjects);
 
         // Auto-select first pending project if available
         if (fetchedProjects.length > 0) {
-          const firstPending = fetchedProjects.find((p) => !p.isJudged);
+          const firstPending = fetchedProjects.find(
+            (p: ProjectData) => !p.isJudged
+          );
           if (firstPending) {
             setSelectedProject(firstPending);
           } else {
@@ -156,6 +185,35 @@ export default function JudgePage() {
 
     fetchProjects();
   }, [isLoggedIn, user]);
+
+  // Check if judging has ended - block access
+  if (competitionStatus?.judgingEnded) {
+    return (
+      <AuthGuard mode="email-only">
+        <div className="flex min-h-svh flex-col items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-lg">
+            <div className="text-6xl mb-6">🏁</div>
+            <h1 className="text-2xl font-bold text-blue-600">
+              Judging Period Has Ended
+            </h1>
+            <p className="text-muted-foreground">
+              Thank you for your participation in the judging process! The
+              judging period has officially concluded. Winners will be announced
+              soon.
+            </p>
+            <div className="mt-6">
+              <Button
+                onClick={() => (window.location.href = "/leaderboard")}
+                className="mt-4"
+              >
+                View Leaderboard
+              </Button>
+            </div>
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
 
   if (loading) {
     return (
@@ -204,8 +262,8 @@ export default function JudgePage() {
           <div className="text-center space-y-4 max-w-md">
             <h1 className="text-2xl font-bold">No Projects Assigned</h1>
             <p className="text-muted-foreground">
-              You don't have any projects assigned for judging at the moment.
-              Please check back later or contact an administrator.
+              You don&apos;t have any projects assigned for judging at the
+              moment. Please check back later or contact an administrator.
             </p>
           </div>
         </div>
