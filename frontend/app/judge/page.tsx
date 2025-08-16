@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import AuthGuard from "@/components/auth-guard";
 import AIAssistantPanel from "@/components/ai-assistant-panel";
+import ProjectScoring from "@/components/project-scoring";
+import MarkdownRenderer from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +25,8 @@ interface ProjectData {
   ipfsURI: string;
   imageURI: string;
   submittedAt: string;
+  isJudged?: boolean;
+  judgedAt?: string;
   analysis?: {
     summary: string;
     technicalAnalysis: string;
@@ -41,6 +45,45 @@ export default function JudgePage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"pending" | "judged">("pending");
+
+  // Separate projects into categories
+  const pendingProjects = projects.filter((p) => !p.isJudged);
+  const judgedProjects = projects.filter((p) => p.isJudged);
+
+  // Get current list based on active tab
+  const currentProjects =
+    activeTab === "pending" ? pendingProjects : judgedProjects;
+
+  // Handle scoring completion
+  const handleScoreSubmitted = (projectId: string) => {
+    const now = new Date().toISOString();
+
+    // Save judged status to localStorage for persistence
+    const judgedProjects = JSON.parse(
+      localStorage.getItem("judgedProjects") || "{}"
+    );
+    judgedProjects[projectId] = now;
+    localStorage.setItem("judgedProjects", JSON.stringify(judgedProjects));
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, isJudged: true, judgedAt: now } : p
+      )
+    );
+
+    // Update selected project if it's the one we just judged
+    if (selectedProject?.id === projectId) {
+      setSelectedProject((prev) =>
+        prev ? { ...prev, isJudged: true, judgedAt: now } : null
+      );
+    }
+
+    // If this was the last pending project, switch to judged tab
+    if (pendingProjects.length === 1 && selectedProject?.id === projectId) {
+      setActiveTab("judged");
+    }
+  };
 
   // Fetch projects when user is authenticated
   useEffect(() => {
@@ -73,11 +116,30 @@ export default function JudgePage() {
         }
 
         const data = await response.json();
-        setProjects(data.projects || []);
+        let fetchedProjects = data.projects || [];
 
-        // Auto-select first project if available
-        if (data.projects && data.projects.length > 0) {
-          setSelectedProject(data.projects[0]);
+        // Apply judged status from localStorage
+        const judgedProjects = JSON.parse(
+          localStorage.getItem("judgedProjects") || "{}"
+        );
+        fetchedProjects = fetchedProjects.map((p) => ({
+          ...p,
+          isJudged: !!judgedProjects[p.id],
+          judgedAt: judgedProjects[p.id] || undefined,
+        }));
+
+        setProjects(fetchedProjects);
+
+        // Auto-select first pending project if available
+        if (fetchedProjects.length > 0) {
+          const firstPending = fetchedProjects.find((p) => !p.isJudged);
+          if (firstPending) {
+            setSelectedProject(firstPending);
+          } else {
+            // If no pending projects, select first judged project
+            setSelectedProject(fetchedProjects[0]);
+            setActiveTab("judged");
+          }
         }
       } catch (err) {
         console.error("Failed to fetch projects:", err);
@@ -121,6 +183,7 @@ export default function JudgePage() {
     );
   }
 
+  // Handle different project states
   if (projects.length === 0) {
     return (
       <AuthGuard mode="email-only">
@@ -137,6 +200,40 @@ export default function JudgePage() {
     );
   }
 
+  // Handle all projects judged state
+  if (
+    pendingProjects.length === 0 &&
+    judgedProjects.length > 0 &&
+    activeTab === "pending"
+  ) {
+    return (
+      <AuthGuard mode="email-only">
+        <div className="flex min-h-svh flex-col items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-lg">
+            <div className="text-6xl mb-6">🎉</div>
+            <h1 className="text-2xl font-bold text-green-600">
+              All Projects Judged!
+            </h1>
+            <p className="text-muted-foreground">
+              Congratulations! You have completed evaluations for all{" "}
+              {judgedProjects.length} assigned projects. You can review or
+              resubmit your evaluations by clicking the button below.
+            </p>
+            <Button
+              onClick={() => {
+                setActiveTab("judged");
+                setSelectedProject(judgedProjects[0]);
+              }}
+              className="mt-4"
+            >
+              Review Judged Projects ({judgedProjects.length})
+            </Button>
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
+
   return (
     <AuthGuard mode="email-only">
       <div className="min-h-svh bg-background">
@@ -144,46 +241,108 @@ export default function JudgePage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">Judge Panel</h1>
             <p className="text-muted-foreground">
-              You have {projects.length} project
-              {projects.length !== 1 ? "s" : ""} assigned for evaluation
+              {pendingProjects.length} pending • {judgedProjects.length} judged
+              • {projects.length} total projects
             </p>
+          </div>
+
+          {/* Project Category Tabs */}
+          <div className="mb-6">
+            <div className="flex border-b">
+              <Button
+                variant={activeTab === "pending" ? "default" : "ghost"}
+                onClick={() => {
+                  setActiveTab("pending");
+                  if (pendingProjects.length > 0) {
+                    setSelectedProject(pendingProjects[0]);
+                  }
+                }}
+                className="rounded-b-none"
+              >
+                📝 Pending ({pendingProjects.length})
+              </Button>
+              <Button
+                variant={activeTab === "judged" ? "default" : "ghost"}
+                onClick={() => {
+                  setActiveTab("judged");
+                  if (judgedProjects.length > 0) {
+                    setSelectedProject(judgedProjects[0]);
+                  }
+                }}
+                className="rounded-b-none ml-1"
+              >
+                ✅ Judged ({judgedProjects.length})
+              </Button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Project List */}
             <div className="lg:col-span-1 space-y-4">
-              <h2 className="text-xl font-semibold">Assigned Projects</h2>
-              <div className="space-y-3">
-                {projects.map((project) => (
-                  <Card
-                    key={project.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
-                      selectedProject?.id === project.id
-                        ? "ring-2 ring-primary"
-                        : ""
-                    }`}
-                    onClick={() => setSelectedProject(project)}
-                  >
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base line-clamp-2">
-                        {project.name}
-                      </CardTitle>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        {new Date(project.submittedAt).toLocaleDateString()}
-                      </div>
-                      {project.analysis && (
-                        <div className="flex items-center gap-2">
-                          <Star className="h-4 w-4 text-yellow-500" />
-                          <span className="text-sm font-medium">
-                            {project.analysis.score}/100
-                          </span>
+              <h2 className="text-xl font-semibold">
+                {activeTab === "pending"
+                  ? "📝 Pending Projects"
+                  : "✅ Judged Projects"}
+              </h2>
+              {currentProjects.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>
+                    {activeTab === "pending"
+                      ? "No pending projects to judge"
+                      : "No projects judged yet"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {currentProjects.map((project) => (
+                    <Card
+                      key={project.id}
+                      className={`cursor-pointer transition-all hover:shadow-md ${
+                        selectedProject?.id === project.id
+                          ? "ring-2 ring-primary"
+                          : ""
+                      }`}
+                      onClick={() => setSelectedProject(project)}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-base line-clamp-2 flex-1">
+                            {project.name}
+                          </CardTitle>
+                          {project.isJudged && (
+                            <span className="text-green-500 text-lg flex-shrink-0 ml-2">
+                              ✅
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(project.submittedAt).toLocaleDateString()}
+                          {project.isJudged && project.judgedAt && (
+                            <>
+                              <span>•</span>
+                              <span className="text-green-600 dark:text-green-400">
+                                Judged{" "}
+                                {new Date(
+                                  project.judgedAt
+                                ).toLocaleDateString()}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        {project.analysis && (
+                          <div className="flex items-center gap-2">
+                            <Star className="h-4 w-4 text-yellow-500" />
+                            <span className="text-sm font-medium">
+                              {project.analysis.score}/100
+                            </span>
+                          </div>
+                        )}
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Project Details */}
@@ -227,9 +386,10 @@ export default function JudgePage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-muted-foreground leading-relaxed">
-                        {selectedProject.description}
-                      </p>
+                      <MarkdownRenderer
+                        content={selectedProject.description}
+                        className="text-muted-foreground"
+                      />
                     </CardContent>
                   </Card>
 
@@ -313,17 +473,40 @@ export default function JudgePage() {
                     </Card>
                   )}
 
-                  {/* Judging Actions */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Judging Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex gap-4">
-                      <Button>Start Evaluation</Button>
-                      <Button variant="outline">View Rubric</Button>
-                      <Button variant="outline">Export Report</Button>
-                    </CardContent>
-                  </Card>
+                  {/* Project Scoring - Always Visible */}
+                  {selectedProject && (
+                    <div className="space-y-4">
+                      {selectedProject.isJudged && (
+                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                            <span className="text-lg">✅</span>
+                            <span className="font-medium">
+                              Project Already Judged
+                            </span>
+                            {selectedProject.judgedAt && (
+                              <span className="text-sm opacity-75">
+                                •{" "}
+                                {new Date(
+                                  selectedProject.judgedAt
+                                ).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                            You can resubmit your evaluation if needed by
+                            scoring below.
+                          </p>
+                        </div>
+                      )}
+                      <ProjectScoring
+                        projectId={selectedProject.id}
+                        projectName={selectedProject.name}
+                        onScoreSubmitted={() =>
+                          handleScoreSubmitted(selectedProject.id)
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <Card>
@@ -338,9 +521,20 @@ export default function JudgePage() {
           </div>
         </div>
 
-        {/* AI Assistant Panel */}
+        {/* AI Assistant Panel - Now includes proper project context */}
         <AIAssistantPanel
-          project={selectedProject || undefined}
+          project={
+            selectedProject
+              ? {
+                  name: selectedProject.name,
+                  description: selectedProject.description,
+                  project_url: selectedProject.project_url,
+                  submitter: selectedProject.submitter,
+                  tokenId: selectedProject.tokenId,
+                  ipfsURI: selectedProject.ipfsURI,
+                }
+              : undefined
+          }
           projectId={selectedProject?.id}
         />
       </div>
