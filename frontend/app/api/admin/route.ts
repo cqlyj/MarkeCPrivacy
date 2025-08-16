@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SupabaseService } from "@/lib/supabase-db";
+import { getIntelligentOpenSeaAgent } from "@/lib/intelligent-opensea-agent-v2";
 
 // Admin endpoints for competition management
 // Note: In production, add proper admin authentication
@@ -75,12 +76,36 @@ export async function POST(request: NextRequest) {
       // Announce winners - makes scores public
       await SupabaseService.announceWinners();
 
+      try {
+        // Push updated metadata on-chain via intelligent agent
+        const agent = getIntelligentOpenSeaAgent();
+        // This helper will iterate through leaderboard and push metadata.
+        // For now we call a placeholder method; implement actual contract logic inside the agent.
+        if ((agent as any).pushUpdatedMetadata) {
+          await (agent as any).pushUpdatedMetadata();
+        }
+      } catch (e) {
+        console.error("[Admin] Failed to push metadata on-chain", e);
+      }
+
       console.log("[Admin] Winners announced! Scores are now public.");
 
       return NextResponse.json({
         success: true,
         message: "Winners announced successfully! Scores are now public.",
       });
+    }
+
+    if (action === "start_judging") {
+      await SupabaseService.startJudging();
+      console.log("[Admin] Judging started");
+      return NextResponse.json({ success: true, message: "Judging started" });
+    }
+
+    if (action === "end_judging") {
+      await SupabaseService.endJudging();
+      console.log("[Admin] Judging ended");
+      return NextResponse.json({ success: true, message: "Judging ended" });
     }
 
     if (action === "update_top20") {
