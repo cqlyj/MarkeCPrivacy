@@ -349,6 +349,24 @@ export class SupabaseService {
   }
 
   // Competition status management
+  private static async getCompetitionStatusRowId(): Promise<number> {
+    const { data, error } = await supabaseAdmin
+      .from("competition_status")
+      .select("id")
+      .order("id", { ascending: true })
+      .limit(1)
+      .single();
+
+    if (error) {
+      console.error("Failed to fetch competition status ID:", error);
+      throw new Error(
+        `Failed to fetch competition status ID: ${error.message}`
+      );
+    }
+
+    return data?.id ?? 1;
+  }
+
   static async getCompetitionStatus(): Promise<CompetitionStatus> {
     const { data, error } = await supabaseAdmin
       .from("competition_status")
@@ -366,7 +384,7 @@ export class SupabaseService {
       judgingStarted:
         typeof (data as any).judging_started === "boolean"
           ? (data as any).judging_started
-          : true,
+          : false,
       judgingEnded:
         typeof (data as any).judging_ended === "boolean"
           ? (data as any).judging_ended
@@ -378,10 +396,11 @@ export class SupabaseService {
   }
 
   static async startJudging(): Promise<void> {
-    const { error } = await supabaseAdmin
+    const id = await this.getCompetitionStatusRowId();
+    const { error } = await supabaseAdmin!
       .from("competition_status")
       .update({ judging_started: true })
-      .eq("id", 1);
+      .eq("id", id);
 
     if (error) {
       console.error("Failed to start judging:", error);
@@ -390,10 +409,11 @@ export class SupabaseService {
   }
 
   static async endJudging(): Promise<void> {
-    const { error } = await supabaseAdmin
+    const id = await this.getCompetitionStatusRowId();
+    const { error } = await supabaseAdmin!
       .from("competition_status")
       .update({ judging_ended: true })
-      .eq("id", 1);
+      .eq("id", id);
 
     if (error) {
       console.error("Failed to end judging:", error);
@@ -403,13 +423,14 @@ export class SupabaseService {
 
   // Announce winners (makes scores public)
   static async announceWinners(): Promise<void> {
-    const { error } = await supabaseAdmin
+    const id = await this.getCompetitionStatusRowId();
+    const { error } = await supabaseAdmin!
       .from("competition_status")
       .update({
         winners_announced: true,
         announcement_date: new Date().toISOString(),
       })
-      .eq("id", 1);
+      .eq("id", id);
 
     if (error) {
       console.error("Failed to announce winners:", error);
