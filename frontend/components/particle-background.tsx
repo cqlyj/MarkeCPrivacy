@@ -103,37 +103,42 @@ export default function ParticleBackground() {
       {animatedParticles}
 
       {/* Floating geometric shapes */}
-      {[...Array(8)].map((_, i) => (
-        <motion.div
-          key={`shape-${i}`}
-          className="absolute"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-          }}
-          animate={{
-            y: [0, -50, 0],
-            rotate: [0, 180, 360],
-            opacity: [0.1, 0.3, 0.1],
-          }}
-          transition={{
-            duration: 8 + i,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.5,
-          }}
-        >
-          <div
-            className={`w-6 h-6 ${
-              i % 3 === 0
-                ? "bg-gradient-to-r from-blue-400/20 to-purple-400/20"
-                : i % 3 === 1
-                ? "bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-full"
-                : "bg-gradient-to-r from-green-400/20 to-teal-400/20"
-            } ${i % 2 === 0 ? "rounded-full" : "rotate-45"}`}
-          />
-        </motion.div>
-      ))}
+      {useMemo(
+        () =>
+          [...Array(8)].map((_, i) => {
+            const left = `${(i * 37) % 100}%`;
+            const top = `${(i * 61) % 100}%`;
+            return (
+              <motion.div
+                key={`shape-${i}`}
+                className="absolute"
+                style={{ left, top }}
+                animate={{
+                  y: [0, -50, 0],
+                  rotate: [0, 180, 360],
+                  opacity: [0.1, 0.3, 0.1],
+                }}
+                transition={{
+                  duration: 8 + i,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: i * 0.5,
+                }}
+              >
+                <div
+                  className={`w-6 h-6 ${
+                    i % 3 === 0
+                      ? "bg-gradient-to-r from-blue-400/20 to-purple-400/20"
+                      : i % 3 === 1
+                      ? "bg-gradient-to-r from-yellow-400/20 to-orange-400/20 rounded-full"
+                      : "bg-gradient-to-r from-green-400/20 to-teal-400/20"
+                  } ${i % 2 === 0 ? "rounded-full" : "rotate-45"}`}
+                />
+              </motion.div>
+            );
+          }),
+        []
+      )}
 
       {/* Gradient overlays for depth */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/10 dark:to-black/10" />
