@@ -76,7 +76,7 @@ export default function OpenSeaAIAssistantPanel({
 
 **Example queries:**
 - "Show me the NFT portfolio of Hashlocked team's first member"
-- "Compare team 1 vs team 2" 
+- "Compare team 2 vs team 3" 
 - "What's trending in NFTs right now?"
 - "Get wallet portfolio for 0x..."
 
