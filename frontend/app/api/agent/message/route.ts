@@ -97,28 +97,20 @@ export async function POST(request: NextRequest) {
           break;
 
         case "ask_question":
-          if (!question || !project) {
-            return NextResponse.json(
-              { error: "Question and project context required" },
-              { status: 400 }
-            );
-          }
           const answer = await agent.processMessage(
-            `Answer this question about the project: ${question}`,
-            { project }
+            question || message || "Hello!",
+            { project, projectId, email, ...data }
           );
           response.answer = answer;
           break;
 
         case "chat":
         default:
-          // General chat with the agent
-          const chatResponse = await agent.processMessage(message || "Hello!", {
-            project,
-            projectId,
-            email,
-            ...data,
-          });
+          // General chat with the agent - always include full context
+          const chatResponse = await agent.processMessage(
+            message || question || "Hello!",
+            { project, projectId, email, ...data }
+          );
           response.message = chatResponse;
           break;
       }
