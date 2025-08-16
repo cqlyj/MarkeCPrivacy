@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
-import AuthGuard from "@/components/auth-guard";
 import { Button } from "@/components/ui";
 import ParticleBackground from "@/components/particle-background";
 import OpenSeaAIAssistantPanel from "@/components/opensea-ai-assistant-panel";
+import AuthGuard from "@/components/auth-guard";
 import {
   Trophy,
   Sparkles,
@@ -263,38 +263,34 @@ export default function LeaderboardPage() {
 
   if (loading) {
     return (
-      <AuthGuard mode="wallet-only">
-        <div className="flex min-h-svh items-center justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-            className="text-blue-500"
-          >
-            <Zap size={48} />
-          </motion.div>
-        </div>
-      </AuthGuard>
+      <div className="flex min-h-svh items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+          className="text-blue-500"
+        >
+          <Zap size={48} />
+        </motion.div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <AuthGuard mode="wallet-only">
-        <div className="flex min-h-svh items-center justify-center p-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-500 mb-4">Error</h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-            <Button onClick={fetchData}>Retry</Button>
-          </div>
+      <div className="flex min-h-svh items-center justify-center p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-500 mb-4">Error</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <Button onClick={fetchData}>Retry</Button>
         </div>
-      </AuthGuard>
+      </div>
     );
   }
 
   if (!data) return null;
 
   return (
-    <AuthGuard mode="wallet-only">
+    <AuthGuard mode="wallet-only" title="Leaderboard">
       <div className="min-h-svh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 relative overflow-hidden">
         <ParticleBackground />
 
