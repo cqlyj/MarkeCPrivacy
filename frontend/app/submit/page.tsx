@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useDynamicContext, DynamicEmbeddedWidget } from "@/lib/dynamic";
+import { useDynamicContext } from "@/lib/dynamic";
 import { Button, Input, Textarea } from "@/components/ui";
+import AuthGuard from "@/components/auth-guard";
 
 interface SuccessResponse {
   txHash: string;
@@ -64,119 +65,166 @@ export default function SubmitPage() {
     }
   };
 
-  // If no wallet connected, prompt to connect
-  if (!primaryWallet) {
-    return (
-      <div className="flex min-h-svh items-center justify-center p-6">
-        <DynamicEmbeddedWidget background="default" />
-      </div>
-    );
-  }
-
   if (success) {
     return (
-      <div className="flex min-h-svh items-center justify-center p-6">
-        <div className="max-w-md w-full space-y-4 text-center">
-          <h1 className="text-2xl font-semibold">Submission Successful!</h1>
-          <p className="text-muted-foreground">Project: {name}</p>
-          <p className="break-all">
-            Team ID (wallet): <span className="font-mono">{walletAddress}</span>
-          </p>
-          <p className="break-all">
-            Transaction:&nbsp;
-            <a
-              href={`https://etherscan.io/tx/${success.txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline text-primary"
+      <AuthGuard mode="wallet-only">
+        <div className="flex min-h-svh items-center justify-center p-6">
+          <div className="max-w-md w-full space-y-6 text-center">
+            <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-green-600 dark:text-green-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-green-600 dark:text-green-400">
+              Submission Successful!
+            </h1>
+            <div className="space-y-3 text-sm">
+              <p className="font-medium">Project: {name}</p>
+              <p className="break-all">
+                <span className="text-muted-foreground">Team ID:</span>{" "}
+                <span className="font-mono text-xs">{walletAddress}</span>
+              </p>
+              <p className="break-all">
+                <span className="text-muted-foreground">Transaction:</span>{" "}
+                <a
+                  href={`https://etherscan.io/tx/${success.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-primary hover:text-primary/80 font-mono text-xs"
+                >
+                  {success.txHash.slice(0, 10)}...{success.txHash.slice(-8)}
+                </a>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Token ID:</span>{" "}
+                {success.tokenId}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => (window.location.href = "/")}
+              className="mt-6"
             >
-              {success.txHash}
-            </a>
-          </p>
-          <p>Token ID: {success.tokenId}</p>
+              Back to Home
+            </Button>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md space-y-4 bg-card p-6 rounded-md border"
-      >
-        {/* Wallet info and actions */}
-        <div className="flex items-center justify-between mb-4 text-sm">
-          <span className="font-mono break-all">
-            {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
-          </span>
-          <Button
-            variant="ghost"
-            type="button"
-            onClick={() => handleLogOut?.()}
-          >
-            Disconnect
+    <AuthGuard mode="wallet-only">
+      <div className="flex min-h-svh items-center justify-center p-6">
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-md space-y-4 bg-card p-6 rounded-lg border shadow-sm"
+        >
+          {/* Wallet info and actions */}
+          <div className="flex items-center justify-between mb-6 p-3 bg-muted rounded-md">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="font-mono text-sm">
+                {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => handleLogOut?.()}
+            >
+              Disconnect
+            </Button>
+          </div>
+
+          <div className="text-center mb-6">
+            <h1 className="text-xl font-semibold">Project Submission</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Submit your project to the competition
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2" htmlFor="name">
+                Project Name
+              </label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setName(e.target.value)
+                }
+                placeholder="Enter your project name"
+                required
+              />
+            </div>
+
+            <div>
+              <label
+                className="block text-sm font-medium mb-2"
+                htmlFor="description"
+              >
+                Description
+              </label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setDescription(e.target.value)
+                }
+                placeholder="Describe your project..."
+                rows={4}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2" htmlFor="url">
+                Project URL
+              </label>
+              <Input
+                id="url"
+                type="url"
+                value={projectUrl}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setProjectUrl(e.target.value)
+                }
+                placeholder="https://your-project.com"
+                required
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <p className="text-destructive text-sm text-center">{error}</p>
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                <span>Submitting...</span>
+              </div>
+            ) : (
+              "Submit Project"
+            )}
           </Button>
-        </div>
-
-        <h1 className="text-xl font-semibold text-center">
-          Project Submission
-        </h1>
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="name">
-            Project Name
-          </label>
-          <Input
-            id="name"
-            value={name}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setName(e.target.value)
-            }
-            required
-          />
-        </div>
-
-        <div>
-          <label
-            className="block text-sm font-medium mb-1"
-            htmlFor="description"
-          >
-            Description
-          </label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-              setDescription(e.target.value)
-            }
-            rows={4}
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="url">
-            Project URL
-          </label>
-          <Input
-            id="url"
-            type="url"
-            value={projectUrl}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setProjectUrl(e.target.value)
-            }
-            required
-          />
-        </div>
-
-        {error && (
-          <p className="text-destructive text-sm text-center">{error}</p>
-        )}
-
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Submitting..." : "Submit"}
-        </Button>
-      </form>
-    </div>
+        </form>
+      </div>
+    </AuthGuard>
   );
 }
