@@ -6,6 +6,7 @@ import AIAssistantPanel from "@/components/ai-assistant-panel";
 import ProjectScoring from "@/components/project-scoring";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import { Button } from "@/components/ui/button";
+import WalletInfoBar from "@/components/wallet-info-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -105,14 +106,16 @@ export default function JudgePage() {
 
         console.log("Fetching projects with token...");
 
-        const response = await fetch("/api/projects?assigned=true", {
+        const response = await fetch("/api/projects?mode=judging", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch projects: ${response.statusText}`);
+          if (response.status !== 403) {
+            throw new Error(`Failed to fetch projects: ${response.statusText}`);
+          }
         }
 
         const data = await response.json();
@@ -171,12 +174,22 @@ export default function JudgePage() {
     return (
       <AuthGuard mode="email-only">
         <div className="flex min-h-svh flex-col items-center justify-center p-6">
-          <div className="text-center space-y-4">
-            <h1 className="text-2xl font-bold text-destructive">
-              Error Loading Projects
-            </h1>
-            <p className="text-muted-foreground">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
+          <div className="text-center space-y-4 max-w-md">
+            <h1 className="text-2xl font-bold text-destructive">{error}</h1>
+            {error.includes("Judging has not started") ? (
+              <p className="text-muted-foreground">
+                Please wait for the admin to start the judging round.
+              </p>
+            ) : (
+              <>
+                <p className="text-muted-foreground">
+                  Try refreshing the page.
+                </p>
+                <Button onClick={() => window.location.reload()}>
+                  Refresh
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </AuthGuard>
@@ -237,6 +250,7 @@ export default function JudgePage() {
   return (
     <AuthGuard mode="email-only">
       <div className="min-h-svh bg-background">
+        <WalletInfoBar className="mb-6 px-6" />
         <div className="container mx-auto p-6">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">Judge Panel</h1>
