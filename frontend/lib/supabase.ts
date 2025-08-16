@@ -4,11 +4,42 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// Debug: Log environment variables (remove in production)
+console.log("Environment check:", {
+  hasUrl: !!supabaseUrl,
+  hasAnonKey: !!supabaseAnonKey,
+  url: supabaseUrl?.slice(0, 20) + "...",
+});
+
+// Validate required environment variables
+if (!supabaseUrl) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable");
+}
+
+if (!supabaseAnonKey) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable");
+}
+
 // Client for browser/public operations
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Admin client for server-side operations with full access
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// Create admin client **only** on the server to avoid exposing the service role key
+// This prevents the "supabaseKey is required" error in the browser while keeping
+// full functionality in API routes / server components.
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+let supabaseAdminInstance: SupabaseClient | null = null;
+
+if (typeof window === "undefined") {
+  if (!supabaseServiceKey) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable");
+  }
+
+  supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
+}
+
+export const supabaseAdmin = supabaseAdminInstance as SupabaseClient | null;
 
 // Database Types (Privacy-Focused)
 export interface ProjectRow {
