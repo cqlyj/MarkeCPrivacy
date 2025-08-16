@@ -25,24 +25,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             process.env.NEXT_PUBLIC_DYNAMIC_ENV_ID ||
             "2762a57b-faa4-41ce-9f16-abff9300e2c9",
           walletConnectors: [EthereumWalletConnectors],
-          handlers: {
-            handleAuthenticatedUser: async ({ user }) => {
-              const raw = process.env.NEXT_PUBLIC_ALLOWED_EMAILS || "";
-              const allow = raw
-                .split(/[,;\s]+/)
-                .filter(Boolean)
-                .map((e) => e.toLowerCase());
-
-              const email = (user as any)?.email?.toLowerCase();
-              if (!email || !allow.includes(email)) {
-                alert(
-                  `Access denied: ${email ?? "unknown"} is not authorized.`
-                );
-                throw new Error("unauthorized_email");
-              }
-              return true;
-            },
-          },
+          initialAuthenticationMode: "connect-and-sign", // Default mode for email auth
+          // No global email gating here – handled per page.
         }}
       >
         <WagmiProvider config={config}>
