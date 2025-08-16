@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
+import confetti from "canvas-confetti";
 import { Button } from "@/components/ui";
 import ParticleBackground from "@/components/particle-background";
 import OpenSeaAIAssistantPanel from "@/components/opensea-ai-assistant-panel";
@@ -32,16 +33,23 @@ interface ProjectData {
   submitter: string;
   submittedAt: string;
   isTop20: boolean;
+  // Final rankings, only available once winners are announced
+  isWinner?: boolean;
+  rank?: number;
+  totalScore?: number;
 }
 
 interface LeaderboardData {
   pool: ProjectData[];
   top20: ProjectData[];
+  winners: ProjectData[];
   stats: {
     totalProjects: number;
     top20Count: number;
     poolCount: number;
     winnersAnnounced: boolean;
+    judgingStarted?: boolean;
+    judgingEnded?: boolean;
   };
 }
 
@@ -213,6 +221,65 @@ const ProjectCard = ({
   );
 };
 
+// Special card for FINAL winners with 3-D flair ✨
+const WinnerCard = ({ project }: { project: ProjectData }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Determine styling by rank (gold / silver / bronze)
+  const rankColor =
+    project.rank === 1
+      ? {
+          from: "from-yellow-400",
+          to: "to-amber-500",
+          text: "text-yellow-600",
+        }
+      : project.rank === 2
+      ? {
+          from: "from-gray-300",
+          to: "to-gray-500",
+          text: "text-gray-500",
+        }
+      : {
+          from: "from-orange-400",
+          to: "to-amber-600",
+          text: "text-amber-600",
+        };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 50, rotateX: 90 }}
+      animate={{ opacity: 1, y: 0, rotateX: 0 }}
+      whileHover={{ scale: 1.05, rotateY: 5 }}
+      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      className={`relative p-8 rounded-3xl bg-gradient-to-br ${rankColor.from} ${rankColor.to} shadow-2xl cursor-pointer transform-gpu perspective-1000`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* 3-D floating trophy */}
+      <motion.div
+        animate={{ y: isHovered ? [0, -10, 0] : 0, rotate: [0, 15, -15, 0] }}
+        transition={{ repeat: Infinity, duration: 4 }}
+        className="absolute -top-8 left-1/2 -translate-x-1/2 text-white drop-shadow-lg"
+      >
+        <Trophy size={64} />
+      </motion.div>
+
+      <div className="mt-8 text-center space-y-3">
+        <h3 className="text-3xl font-extrabold text-white flex items-center justify-center space-x-2">
+          <span className="text-shadow-lg">#{project.teamId}</span>
+        </h3>
+        <p className="text-lg text-white/90 line-clamp-2">{project.name}</p>
+        {typeof project.totalScore === "number" && (
+          <p className="text-sm font-semibold text-white/80">
+            Score: {project.totalScore}
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 export default function LeaderboardPage() {
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -241,6 +308,17 @@ export default function LeaderboardPage() {
     fetchData();
   }, [fetchData]);
 
+  // Celebrate when winners are announced 🎉
+  useEffect(() => {
+    if (data?.stats.winnersAnnounced) {
+      confetti({
+        particleCount: 250,
+        spread: 120,
+        origin: { y: 0.6 },
+      });
+    }
+  }, [data?.stats.winnersAnnounced]);
+
   // Set up real-time subscriptions
   useEffect(() => {
     if (!data) return;
@@ -253,6 +331,14 @@ export default function LeaderboardPage() {
         (payload) => {
           console.log("Top20 status changed:", payload);
           fetchData(); // Refresh data on changes
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "competition_status" },
+        (payload) => {
+          console.log("Competition status changed:", payload);
+          fetchData();
         }
       )
       .subscribe();
@@ -347,6 +433,33 @@ export default function LeaderboardPage() {
               Hackathon Projects Competing for Glory
             </p>
 
+            {/* Competition Status Banner */}
+            {data.stats && (
+              <div className="mt-4 flex justify-center">
+                {data.stats.winnersAnnounced ? (
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="px-4 py-2 rounded-full bg-gradient-to-r from-green-400 to-emerald-600 text-white font-semibold shadow-lg"
+                  >
+                    🏆 Winners Announced!
+                  </motion.div>
+                ) : data.stats.judgingEnded ? (
+                  <div className="px-4 py-2 rounded-full bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 font-medium">
+                    Judging concluded • Awaiting results
+                  </div>
+                ) : data.stats.judgingStarted ? (
+                  <div className="px-4 py-2 rounded-full bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 font-medium animate-pulse">
+                    🔍 Judging in progress
+                  </div>
+                ) : (
+                  <div className="px-4 py-2 rounded-full bg-gray-200 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium">
+                    Submissions phase
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Stats Bar */}
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -380,6 +493,39 @@ export default function LeaderboardPage() {
               </div>
             </motion.div>
           </motion.div>
+
+          {/* Winners Section */}
+          {data.stats.winnersAnnounced &&
+            data.winners &&
+            data.winners.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mb-20"
+              >
+                <motion.div
+                  className="text-center mb-10"
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ repeat: Infinity, duration: 3 }}
+                >
+                  <h2 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent flex items-center justify-center space-x-4">
+                    <Rocket size={40} />
+                    <span>FINAL PODIUM</span>
+                    <Rocket size={40} />
+                  </h2>
+                  <p className="text-gray-700 dark:text-gray-300 mt-3">
+                    Celebrating the crème de la crème
+                  </p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                  {data.winners.map((project) => (
+                    <WinnerCard key={project.id} project={project} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
 
           {/* Top 20 Section */}
           {data.top20.length > 0 && (
