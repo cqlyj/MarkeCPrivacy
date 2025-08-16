@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import AuthGuard from "@/components/auth-guard";
 import { Button } from "@/components/ui";
 import ParticleBackground from "@/components/particle-background";
+import OpenSeaAIAssistantPanel from "@/components/opensea-ai-assistant-panel";
 import {
   Trophy,
   Sparkles,
@@ -476,7 +477,7 @@ export default function LeaderboardPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="fixed bottom-6 right-6"
+            className="fixed bottom-6 left-6"
           >
             <Button
               onClick={fetchData}
@@ -497,6 +498,9 @@ export default function LeaderboardPage() {
             </Button>
           </motion.div>
         </div>
+
+        {/* OpenSea AI Assistant Panel */}
+        <OpenSeaAIAssistantPanel />
       </div>
     </AuthGuard>
   );
