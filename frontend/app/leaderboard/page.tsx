@@ -280,6 +280,102 @@ const WinnerCard = ({ project }: { project: ProjectData }) => {
   );
 };
 
+// Simple card for finalists (no scores shown)
+const FinalistCard = ({ project }: { project: ProjectData }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{
+        opacity: 1,
+        scale: 1,
+        y: [0, -5, 0],
+      }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      transition={{
+        layout: { type: "spring", stiffness: 300, damping: 30 },
+        y: { repeat: Infinity, duration: 4, ease: "easeInOut" },
+      }}
+      className={`
+        relative group cursor-pointer p-6 rounded-2xl border-2 
+        bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 dark:from-yellow-900/20 dark:via-amber-900/20 dark:to-orange-900/20 
+        border-amber-300 dark:border-amber-600 shadow-lg shadow-amber-200/50 dark:shadow-amber-900/20
+        transition-all duration-300 transform-gpu
+        ${isHovered ? "shadow-2xl scale-105" : "hover:shadow-lg"}
+      `}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+    >
+      {/* Crown for finalists */}
+      <motion.div
+        animate={{
+          scale: [1, 1.1, 1],
+          rotate: [0, 5, -5, 0],
+        }}
+        transition={{
+          repeat: Infinity,
+          duration: 3,
+          ease: "easeInOut",
+        }}
+        className="absolute top-2 right-2"
+      >
+        <Crown className="text-yellow-500" size={24} />
+      </motion.div>
+
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center space-x-3">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-lg">
+            #{project.teamId}
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white">
+              {project.name}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Team #{project.teamId} • FINALIST
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-gray-700 dark:text-gray-300 mb-4 line-clamp-3">
+        {project.description}
+      </p>
+
+      <div className="flex items-center justify-between">
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(project.project_url, "_blank");
+            }}
+            className="flex items-center space-x-2"
+          >
+            <ExternalLink size={16} />
+            <span>View Project</span>
+          </Button>
+        </motion.div>
+
+        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-1">
+          <Users size={12} />
+          <span>{project.submitter.slice(0, 6)}...</span>
+        </div>
+      </div>
+
+      {/* Hover overlay effect */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isHovered ? 0.1 : 0 }}
+        className="absolute inset-0 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500"
+      />
+    </motion.div>
+  );
+};
+
 export default function LeaderboardPage() {
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -527,8 +623,8 @@ export default function LeaderboardPage() {
               </motion.div>
             )}
 
-          {/* Top 20 Section */}
-          {data.top20.length > 0 && (
+          {/* Finalists Section - Only show when judging ended but winners not announced */}
+          {data.top20.length > 0 && data.stats.judgingEnded && !data.stats.winnersAnnounced && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
@@ -544,11 +640,11 @@ export default function LeaderboardPage() {
               >
                 <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 flex items-center justify-center space-x-3">
                   <Crown size={32} />
-                  <span>TOP 20 ELITE ZONE</span>
+                  <span>FINALISTS</span>
                   <Crown size={32} />
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300 mt-2">
-                  The cream of the crop, floating above the rest
+                  The selected finalists - scores will be revealed when winners are announced
                 </p>
               </motion.div>
 
@@ -556,7 +652,7 @@ export default function LeaderboardPage() {
                 <AnimatePresence mode="popLayout">
                   {data.top20.map((project) => (
                     <motion.div key={project.id}>
-                      <ProjectCard project={project} isFloating />
+                      <FinalistCard project={project} />
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -564,8 +660,8 @@ export default function LeaderboardPage() {
             </motion.div>
           )}
 
-          {/* Pool Section */}
-          {data.pool.length > 0 && (
+          {/* Pool Section - Only show when judging hasn't ended or winners announced */}
+          {data.pool.length > 0 && !data.stats.judgingEnded && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
