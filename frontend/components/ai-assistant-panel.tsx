@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import MarkdownRenderer from "@/components/markdown-renderer";
 import {
   Sheet,
   SheetContent,
@@ -65,8 +66,12 @@ export default function AIAssistantPanel({
       const welcomeMessage: Message = {
         id: `welcome-${Date.now()}`,
         content: project
-          ? `Hello! I'm your AI assistant for evaluating "${project.name}". I can help you understand the project, answer questions about its implementation, and provide insights for your evaluation. What would you like to know?`
-          : "Hello! I'm your AI assistant. I can help you with project analysis, judge assignments, and answer questions about submissions. How can I assist you today?",
+          ? `Hello! I'm your AI assistant for evaluating **"${project.name}"**.
+
+I have full access to the project details and can help you with analysis, scoring guidance, technical insights, and any questions you have. Just ask me anything!
+
+Try: "Analyze this project" or "How should I score this?" or any other question you have.`
+          : "Hello! I'm your UnifiedDJ AI assistant. I can help you with project analysis, judging criteria, and answer any questions you have. How can I assist you today?",
         isUser: false,
         timestamp: new Date(),
       };
@@ -74,10 +79,7 @@ export default function AIAssistantPanel({
     }
   }, [isOpen, project, messages.length]);
 
-  const sendMessage = async (
-    message: string,
-    action: string = "ask_question"
-  ) => {
+  const sendMessage = async (message: string, action: string = "chat") => {
     if (!message.trim() || isLoading) return;
 
     const userMessage: Message = {
@@ -106,11 +108,19 @@ export default function AIAssistantPanel({
 
       const payload: any = {
         action,
-        question: message,
+        message: message,
       };
 
+      // Always include project context if available
       if (project) {
-        payload.project = project;
+        payload.project = {
+          name: project.name,
+          description: project.description,
+          project_url: project.project_url,
+          submitter: project.submitter,
+          tokenId: project.tokenId,
+          ipfsURI: project.ipfsURI,
+        };
       }
       if (projectId) {
         payload.projectId = projectId;
@@ -169,63 +179,19 @@ export default function AIAssistantPanel({
     }
   };
 
-  // Quick action buttons
-  const quickActions = project
-    ? [
-        {
-          label: "Analyze this project",
-          action: () =>
-            sendMessage(
-              "Please provide a detailed analysis of this project",
-              "analyze_project"
-            ),
-        },
-        {
-          label: "What are the strengths?",
-          action: () =>
-            sendMessage("What are the main strengths of this project?"),
-        },
-        {
-          label: "Any concerns?",
-          action: () =>
-            sendMessage("Are there any concerns or areas for improvement?"),
-        },
-        {
-          label: "Score breakdown",
-          action: () =>
-            sendMessage("Can you provide a detailed scoring breakdown?"),
-        },
-      ]
-    : [
-        {
-          label: "How does judging work?",
-          action: () => sendMessage("How does the judging process work?"),
-        },
-        {
-          label: "Assign random judges",
-          action: () =>
-            sendMessage("Assign judges to a project", "assign_judges"),
-        },
-        {
-          label: "Get VRF randomness",
-          action: () =>
-            sendMessage("Generate new randomness", "get_randomness"),
-        },
-      ];
-
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
         <Button
           variant="outline"
-          size="sm"
-          className="fixed bottom-6 right-6 h-12 w-12 rounded-full shadow-lg"
+          size="lg"
+          className="fixed bottom-24 right-6 h-16 w-16 rounded-full shadow-xl hover:shadow-2xl transition-all duration-300 bg-primary/10 hover:bg-primary/20 border-2 border-primary/30 z-50"
         >
-          <MessageCircle className="h-5 w-5" />
+          <MessageCircle className="h-8 w-8" />
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
-        <SheetHeader>
+      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col h-full">
+        <SheetHeader className="flex-shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5" />
             AI Assistant
@@ -237,31 +203,10 @@ export default function AIAssistantPanel({
           </SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 flex flex-col gap-4 mt-4">
-          {/* Quick Actions */}
-          {messages.length <= 1 && (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Quick actions:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {quickActions.map((action, index) => (
-                  <Button
-                    key={index}
-                    variant="outline"
-                    size="sm"
-                    onClick={action.action}
-                    disabled={isLoading || !isLoggedIn || !user}
-                    className="text-xs h-8"
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <div className="flex-1 flex flex-col gap-4 mt-4 min-h-0">
           {/* Messages */}
-          <ScrollArea className="flex-1" ref={scrollAreaRef}>
-            <div className="space-y-4 pr-4">
+          <ScrollArea className="flex-1 h-full" ref={scrollAreaRef}>
+            <div className="space-y-4 pr-4 pb-4">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -283,9 +228,18 @@ export default function AIAssistantPanel({
                         : "bg-muted"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">
-                      {message.content}
-                    </p>
+                    {message.isUser ? (
+                      <p className="text-sm whitespace-pre-wrap">
+                        {message.content}
+                      </p>
+                    ) : (
+                      <div className="text-sm">
+                        <MarkdownRenderer
+                          content={message.content}
+                          className="prose-sm prose-slate dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                        />
+                      </div>
+                    )}
                     <p className="text-xs opacity-70 mt-1">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
@@ -313,8 +267,11 @@ export default function AIAssistantPanel({
             </div>
           </ScrollArea>
 
-          {/* Input */}
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          {/* Input - Fixed at bottom */}
+          <form
+            onSubmit={handleSubmit}
+            className="flex gap-2 flex-shrink-0 pt-2 border-t"
+          >
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
