@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui";
 import ParticleBackground from "@/components/particle-background";
 import OpenSeaAIAssistantPanel from "@/components/opensea-ai-assistant-panel";
+import WalletInfoBar from "@/components/wallet-info-bar";
 import AuthGuard from "@/components/auth-guard";
 import {
   Trophy,
@@ -292,6 +293,7 @@ export default function LeaderboardPage() {
   return (
     <AuthGuard mode="wallet-only" title="Leaderboard">
       <div className="min-h-svh bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 relative overflow-hidden">
+        <WalletInfoBar className="absolute top-6 right-6 z-20" />
         <ParticleBackground />
 
         {/* Background animation elements */}
@@ -312,11 +314,11 @@ export default function LeaderboardPage() {
               }}
               className="absolute text-blue-200/30 dark:text-blue-700/20"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 100}%`,
+                left: `${(i * 37) % 100}%`,
+                top: `${(i * 61) % 100}%`,
               }}
             >
-              <Star size={12 + Math.random() * 8} />
+              <Star size={12 + ((i * 7) % 8)} />
             </motion.div>
           ))}
         </div>
