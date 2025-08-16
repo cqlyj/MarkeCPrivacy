@@ -38,6 +38,8 @@ export interface ProjectScoreData {
 
 export interface CompetitionStatus {
   winnersAnnounced: boolean;
+  judgingStarted?: boolean;
+  judgingEnded?: boolean;
   announcementDate?: Date;
 }
 
@@ -49,6 +51,14 @@ export class SupabaseService {
     if (error) {
       console.error("Failed to get next team ID:", error);
       throw new Error(`Failed to generate team ID: ${error.message}`);
+    }
+
+    // Validate that the RPC returned a valid numeric value
+    if (data === null || typeof data !== "number" || Number.isNaN(data)) {
+      const msg =
+        "Supabase function increment_team_counter returned an invalid value (null or non-number). Ensure the database function and counter row are properly initialized.";
+      console.error(msg, "RPC result was:", data);
+      throw new Error(msg);
     }
 
     return data as number;
@@ -352,10 +362,43 @@ export class SupabaseService {
 
     return {
       winnersAnnounced: data.winners_announced,
+      // Treat judging_started as true if column missing to avoid DB schema dependency in frontend flows
+      judgingStarted:
+        typeof (data as any).judging_started === "boolean"
+          ? (data as any).judging_started
+          : true,
+      judgingEnded:
+        typeof (data as any).judging_ended === "boolean"
+          ? (data as any).judging_ended
+          : false,
       announcementDate: data.announcement_date
         ? new Date(data.announcement_date)
         : undefined,
     };
+  }
+
+  static async startJudging(): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from("competition_status")
+      .update({ judging_started: true })
+      .eq("id", 1);
+
+    if (error) {
+      console.error("Failed to start judging:", error);
+      throw new Error(`Failed to start judging: ${error.message}`);
+    }
+  }
+
+  static async endJudging(): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from("competition_status")
+      .update({ judging_ended: true })
+      .eq("id", 1);
+
+    if (error) {
+      console.error("Failed to end judging:", error);
+      throw new Error(`Failed to end judging: ${error.message}`);
+    }
   }
 
   // Announce winners (makes scores public)
