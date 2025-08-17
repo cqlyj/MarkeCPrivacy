@@ -523,7 +523,7 @@ export default function LeaderboardPage() {
                 ease: "easeInOut",
               }}
             >
-              UnifiedDJ Leaderboard
+              MarkeCPrivacy Leaderboard
             </motion.h1>
             <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
               Hackathon Projects Competing for Glory
