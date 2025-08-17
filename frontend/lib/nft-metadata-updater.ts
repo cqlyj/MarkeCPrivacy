@@ -103,7 +103,7 @@ export class NFTMetadataUpdater {
 
       // Update token URI on-chain
       console.log(`[NFT Updater] Updating token ${tokenId} metadata...`);
-      const tx = await this.contract.setTokenURI(tokenId, tokenURI);
+      const tx = await this.contract.updateMetadata(tokenId, tokenURI);
       await tx.wait();
 
       console.log(
@@ -118,11 +118,10 @@ export class NFTMetadataUpdater {
   private async pinJSONToIPFS(
     metadata: Record<string, unknown>
   ): Promise<string> {
-    const pinataApiKey = process.env.PINATA_API_KEY;
-    const pinataSecretKey = process.env.PINATA_SECRET_API_KEY;
+    const pinataJWT = process.env.PINATA_JWT;
 
-    if (!pinataApiKey || !pinataSecretKey) {
-      throw new Error("Missing Pinata API credentials");
+    if (!pinataJWT) {
+      throw new Error("Missing PINATA_JWT environment variable");
     }
 
     const response = await fetch(
@@ -131,15 +130,9 @@ export class NFTMetadataUpdater {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          pinata_api_key: pinataApiKey,
-          pinata_secret_api_key: pinataSecretKey,
+          Authorization: `Bearer ${pinataJWT}`,
         },
-        body: JSON.stringify({
-          pinataContent: metadata,
-          pinataMetadata: {
-            name: `metadata-${Date.now()}.json`,
-          },
-        }),
+        body: JSON.stringify(metadata),
       }
     );
 
