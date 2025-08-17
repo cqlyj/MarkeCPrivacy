@@ -69,7 +69,7 @@ export default function AIAssistantPanel({
           ? `Hello! I'm your AI assistant for evaluating **"${project.name}"**.
 
 Try: "Analyze this project" or "How should I score this?" or any other question you have.`
-          : "Hello! I'm your UnifiedDJ AI assistant. I can help you with project analysis, judging criteria, and answer any questions you have. How can I assist you today?",
+          : "Hello! I'm your MarkeCPrivacy AI assistant. I can help you with project analysis, judging criteria, and answer any questions you have. How can I assist you today?",
         isUser: false,
         timestamp: new Date(),
       };
