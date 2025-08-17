@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SupabaseService } from "@/lib/supabase-db";
-import { getIntelligentOpenSeaAgent } from "@/lib/intelligent-opensea-agent-v2";
+import { getUnifiedDJAgent } from "@/lib/langchain-agent";
 
 // Admin endpoints for competition management
 // Note: In production, add proper admin authentication
@@ -77,12 +77,14 @@ export async function POST(request: NextRequest) {
       await SupabaseService.announceWinners();
 
       try {
-        // Push updated metadata on-chain via intelligent agent
-        const agent = getIntelligentOpenSeaAgent({
+        // Push updated metadata on-chain via LangChain agent
+        const agent = getUnifiedDJAgent({
           aiApiKey: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY,
           aiProvider: process.env.GEMINI_API_KEY ? "gemini" : "openai",
+          flowRpcUrl: process.env.FLOW_EVM_RPC,
+          flowPrivateKey: process.env.AGENT_PRIVATE_KEY,
         });
-        await agent.pushUpdatedMetadata();
+        await agent.updateAllNFTMetadata();
       } catch (e) {
         console.error("[Admin] Failed to push metadata on-chain", e);
       }
