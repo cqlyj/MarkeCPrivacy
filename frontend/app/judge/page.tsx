@@ -14,7 +14,14 @@ import {
   useDynamicContext,
   useIsLoggedIn,
 } from "@dynamic-labs/sdk-react-core";
-import { ExternalLink, Calendar, User, Star, TrendingUp } from "lucide-react";
+import {
+  ExternalLink,
+  Calendar,
+  User,
+  Star,
+  TrendingUp,
+  Sparkles,
+} from "lucide-react";
 
 interface ProjectData {
   id: string;
@@ -539,8 +546,14 @@ export default function JudgePage() {
                       {/* Brief AI-generated summary shown above full description */}
                       {selectedProject &&
                         projectSummaries[selectedProject.id] && (
-                          <div className="mb-4 p-3 rounded-md bg-muted">
-                            <p className="text-sm font-medium leading-relaxed line-clamp-2">
+                          <div className="mb-4 rounded-lg border border-blue-200/60 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/60 to-indigo-50/40 dark:from-blue-900/10 dark:to-indigo-900/10 p-3">
+                            <div className="flex items-center gap-2 mb-1 text-blue-700 dark:text-blue-300">
+                              <Sparkles className="h-4 w-4" />
+                              <span className="text-xs font-semibold tracking-wide uppercase">
+                                AI Summary
+                              </span>
+                            </div>
+                            <p className="text-sm text-blue-900 dark:text-blue-200 leading-relaxed line-clamp-2">
                               {projectSummaries[selectedProject.id]}
                             </p>
                           </div>
