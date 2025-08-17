@@ -623,8 +623,45 @@ export default function LeaderboardPage() {
               </motion.div>
             )}
 
-          {/* Finalists Section - Only show when judging ended but winners not announced */}
-          {data.top20.length > 0 && data.stats.judgingEnded && !data.stats.winnersAnnounced && (
+          {/* Top 20 Section - Visible during judging (before judging ends) */}
+          {data.top20.length > 0 &&
+            data.stats.judgingStarted &&
+            !data.stats.judgingEnded && (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="mb-16"
+              >
+                <motion.div
+                  className="text-center mb-8"
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                >
+                  <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 flex items-center justify-center space-x-3">
+                    <Crown size={32} />
+                    <span>TOP 20</span>
+                    <Crown size={32} />
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300 mt-2">
+                    Current leading projects (subject to change)
+                  </p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                  <AnimatePresence mode="popLayout">
+                    {data.top20.map((project) => (
+                      <motion.div key={project.id}>
+                        <FinalistCard project={project} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
+
+          {/* Finalists Section - Only show after winners are announced */}
+          {data.top20.length > 0 && data.stats.winnersAnnounced && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
@@ -644,7 +681,8 @@ export default function LeaderboardPage() {
                   <Crown size={32} />
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300 mt-2">
-                  The selected finalists - scores will be revealed when winners are announced
+                  The selected finalists - scores will be revealed when winners
+                  are announced
                 </p>
               </motion.div>
 
