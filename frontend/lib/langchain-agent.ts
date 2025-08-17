@@ -9,6 +9,8 @@ import {
 import { Tool } from "@langchain/core/tools";
 import { DynamicTool } from "@langchain/community/tools/dynamic";
 import { FlowVRFService } from "../flow-vrf/flow-vrf-service";
+import { SupabaseService } from "./supabase-db";
+import { ethers } from "ethers";
 
 // Types
 interface ProjectSubmission {
@@ -258,6 +260,20 @@ export class UnifiedDJAgent {
             return answer;
           } catch (error) {
             return `Error answering question: ${error}`;
+          }
+        },
+      }),
+
+      new DynamicTool({
+        name: "update_nft_metadata",
+        description:
+          "Update NFT metadata for all projects after winners are announced",
+        func: async (input: string) => {
+          try {
+            await this.updateAllNFTMetadata();
+            return "Successfully updated NFT metadata for all projects";
+          } catch (error) {
+            return `Error updating NFT metadata: ${error}`;
           }
         },
       }),
@@ -674,6 +690,141 @@ Based on the project submission:
 
   async getVRFRandomness() {
     return this.vrfService.requestRandomness();
+  }
+
+  // NFT Metadata Update functionality
+  async updateAllNFTMetadata(): Promise<void> {
+    console.log("[LangChain Agent] Starting NFT metadata update process...");
+
+    // Get all projects with scores and finalist status
+    const projects = await SupabaseService.getAdminLeaderboard();
+    const competitionStatus = await SupabaseService.getCompetitionStatus();
+
+    if (!competitionStatus.winnersAnnounced) {
+      console.log(
+        "[LangChain Agent] Winners not announced yet, skipping metadata update"
+      );
+      return;
+    }
+
+    // Setup Flow EVM connection
+    const flowRpcUrl = process.env.FLOW_EVM_RPC;
+    const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
+    const teamNftAddress = process.env.TEAM_NFT_ADDRESS;
+    const teamNftAbi = process.env.TEAM_NFT_ABI;
+
+    if (!flowRpcUrl || !agentPrivateKey || !teamNftAddress || !teamNftAbi) {
+      throw new Error(
+        "Missing required environment variables for Flow EVM connection"
+      );
+    }
+
+    const provider = new ethers.JsonRpcProvider(flowRpcUrl);
+    const wallet = new ethers.Wallet(agentPrivateKey, provider);
+    const abi = JSON.parse(teamNftAbi);
+    const contract = new ethers.Contract(teamNftAddress, abi, wallet);
+
+    console.log(
+      `[LangChain Agent] Updating metadata for ${projects.length} projects...`
+    );
+
+    // Update metadata for each project
+    for (const project of projects) {
+      try {
+        // Build updated metadata
+        const metadata = {
+          name: project.name,
+          description: project.description,
+          image: `ipfs://bafkreige4yaxddcbzfxqrmtr5uvkf5alhskzjkxlcornoe4liujopdpzve`,
+          external_url: project.project_url,
+          attributes: [
+            { trait_type: "Team ID", value: project.teamId.toString() },
+            { trait_type: "Finalist", value: project.isTop20 ? "Yes" : "No" },
+            { trait_type: "Members", value: project.submitter },
+            {
+              trait_type: "Technology",
+              value: project.scores?.technology?.toString() || "",
+            },
+            {
+              trait_type: "Completion",
+              value: project.scores?.completion?.toString() || "",
+            },
+            {
+              trait_type: "UI/UX",
+              value: project.scores?.uiUx?.toString() || "",
+            },
+            {
+              trait_type: "Adoption/Practicality",
+              value: project.scores?.adoption?.toString() || "",
+            },
+            {
+              trait_type: "Originality",
+              value: project.scores?.originality?.toString() || "",
+            },
+            {
+              trait_type: "Total Score",
+              value: project.scores?.total?.toString() || "",
+            },
+          ],
+        };
+
+        // Pin updated metadata to IPFS
+        const tokenURI = await this.pinJSONToIPFS(metadata);
+
+        // Extract token ID from project ID (assuming format: "submitter-tokenId")
+        const tokenId = project.id.split("-").pop();
+        if (!tokenId) {
+          console.warn(
+            `[LangChain Agent] Could not extract token ID from project ID: ${project.id}`
+          );
+          continue;
+        }
+
+        // Update token URI on-chain
+        console.log(`[LangChain Agent] Updating token ${tokenId} metadata...`);
+        const tx = await contract.updateMetadata(tokenId, tokenURI);
+        await tx.wait();
+
+        console.log(
+          `[LangChain Agent] Updated metadata for Team #${project.teamId} (Token ${tokenId})`
+        );
+      } catch (error) {
+        console.error(
+          `[LangChain Agent] Failed to update metadata for project ${project.id}:`,
+          error
+        );
+        // Continue with other projects even if one fails
+      }
+    }
+
+    console.log("[LangChain Agent] NFT metadata update process completed");
+  }
+
+  private async pinJSONToIPFS(metadata: any): Promise<string> {
+    const pinataJWT = process.env.PINATA_JWT;
+
+    if (!pinataJWT) {
+      throw new Error("Missing PINATA_JWT environment variable");
+    }
+
+    const response = await fetch(
+      "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pinataJWT}`,
+        },
+        body: JSON.stringify(metadata),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`IPFS pinning failed: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return `ipfs://${result.IpfsHash}`;
   }
 }
 
