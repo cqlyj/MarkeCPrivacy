@@ -11,6 +11,11 @@ export async function GET(request: NextRequest) {
       ? await SupabaseService.getPublicLeaderboard() // includes total scores
       : await SupabaseService.getPublicProjects();
 
+    // Filter to only finalists (isTop20: true) if winners are announced
+    const finalistProjects = competitionStatus.winnersAnnounced
+      ? projects.filter((p) => p.isTop20) // Only show finalists after winners announced
+      : projects;
+
     // Helper: sort by total score when available (higher first)
     const sortByScoreDesc = (a: any, b: any) => {
       const totalA = a.scores?.total ?? 0;
@@ -20,20 +25,31 @@ export async function GET(request: NextRequest) {
 
     // Determine winners (top-3) only after announcement
     let winnersProjects: typeof projects = [];
-    let remainingProjects = projects;
+    let remainingProjects = competitionStatus.winnersAnnounced
+      ? finalistProjects
+      : projects;
 
     if (competitionStatus.winnersAnnounced) {
-      remainingProjects = [...projects].sort(sortByScoreDesc);
-      winnersProjects = remainingProjects.slice(0, 3).map((p) => ({
+      // Only work with finalist projects for winner selection
+      const sortedFinalists = [...finalistProjects].sort(sortByScoreDesc);
+      winnersProjects = sortedFinalists.slice(0, 3).map((p, idx) => ({
         ...p,
         isWinner: true,
+        rank: idx + 1,
       }));
-      remainingProjects = remainingProjects.slice(3);
+      // Remaining finalists (excluding top 3 winners)
+      remainingProjects = sortedFinalists.slice(3);
     }
 
-    // Separate remaining projects into top-20 and pool
-    const poolProjects = remainingProjects.filter((p) => !p.isTop20);
-    const top20Projects = remainingProjects.filter((p) => p.isTop20);
+    // After winners are announced, separate into pool and finalists
+    // Before winners announced, separate into pool and top20
+    const poolProjects = competitionStatus.winnersAnnounced
+      ? [] // No pool shown after winners announced
+      : remainingProjects.filter((p) => !p.isTop20);
+
+    const top20Projects = competitionStatus.winnersAnnounced
+      ? remainingProjects // These are remaining finalists (not winners)
+      : remainingProjects.filter((p) => p.isTop20);
 
     return NextResponse.json({
       success: true,
@@ -73,7 +89,9 @@ export async function GET(request: NextRequest) {
           isTop20: true,
         })),
         stats: {
-          totalProjects: projects.length,
+          totalProjects: competitionStatus.winnersAnnounced
+            ? finalistProjects.length
+            : projects.length,
           top20Count: top20Projects.length,
           poolCount: poolProjects.length,
           winnersAnnounced: competitionStatus.winnersAnnounced,
