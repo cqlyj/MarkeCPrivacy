@@ -568,23 +568,27 @@ export default function LeaderboardPage() {
                   {data.stats.totalProjects}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-300">
-                  Total Projects
+                  {data.stats.winnersAnnounced
+                    ? "Total Finalists"
+                    : "Total Projects"}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {data.stats.top20Count}
+                  {data.winners?.length || 0}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-300">
-                  Top 20
+                  {data.stats.winnersAnnounced ? "Winners" : "Top Winners"}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-indigo-600">
-                  {data.stats.poolCount}
+                  {data.stats.winnersAnnounced
+                    ? data.stats.top20Count
+                    : data.stats.poolCount}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-300">
-                  In Pool
+                  {data.stats.winnersAnnounced ? "Other Finalists" : "In Pool"}
                 </div>
               </div>
             </motion.div>
@@ -660,7 +664,7 @@ export default function LeaderboardPage() {
               </motion.div>
             )}
 
-          {/* Finalists Section - Only show after winners are announced */}
+          {/* Finalists Section - Only show remaining finalists after winners are announced */}
           {data.top20.length > 0 && data.stats.winnersAnnounced && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
@@ -677,12 +681,11 @@ export default function LeaderboardPage() {
               >
                 <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 flex items-center justify-center space-x-3">
                   <Crown size={32} />
-                  <span>FINALISTS</span>
+                  <span>OTHER FINALISTS</span>
                   <Crown size={32} />
                 </h2>
                 <p className="text-gray-600 dark:text-gray-300 mt-2">
-                  The selected finalists - scores will be revealed when winners
-                  are announced
+                  The remaining finalists who made it to the final round
                 </p>
               </motion.div>
 
@@ -690,7 +693,7 @@ export default function LeaderboardPage() {
                 <AnimatePresence mode="popLayout">
                   {data.top20.map((project) => (
                     <motion.div key={project.id}>
-                      <FinalistCard project={project} />
+                      <ProjectCard project={project} isFloating={false} />
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -698,35 +701,37 @@ export default function LeaderboardPage() {
             </motion.div>
           )}
 
-          {/* Pool Section - Only show when judging hasn't ended or winners announced */}
-          {data.pool.length > 0 && !data.stats.judgingEnded && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-            >
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-blue-600 dark:text-blue-400 flex items-center justify-center space-x-3">
-                  <Waves size={32} />
-                  <span>TALENT POOL</span>
-                  <Waves size={32} />
-                </h2>
-                <p className="text-gray-600 dark:text-gray-300 mt-2">
-                  Amazing projects waiting to rise to the top
-                </p>
-              </div>
+          {/* Pool Section - Only show when judging hasn't ended AND winners not announced */}
+          {data.pool.length > 0 &&
+            !data.stats.judgingEnded &&
+            !data.stats.winnersAnnounced && (
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-blue-600 dark:text-blue-400 flex items-center justify-center space-x-3">
+                    <Waves size={32} />
+                    <span>TALENT POOL</span>
+                    <Waves size={32} />
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-300 mt-2">
+                    Amazing projects waiting to rise to the top
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
-                <AnimatePresence mode="popLayout">
-                  {data.pool.map((project) => (
-                    <motion.div key={project.id}>
-                      <ProjectCard project={project} />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                  <AnimatePresence mode="popLayout">
+                    {data.pool.map((project) => (
+                      <motion.div key={project.id}>
+                        <ProjectCard project={project} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            )}
 
           {/* Empty State */}
           {data.stats.totalProjects === 0 && (
