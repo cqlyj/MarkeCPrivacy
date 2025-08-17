@@ -102,7 +102,7 @@ class IntelligentOpenSeaAgent {
         })
         .join("\n\n");
 
-      let systemPrompt = `You are the OpenSea agent for UnifiedDJ hackathon. You have COMPLETE access to all project data and live OpenSea blockchain data.
+      let systemPrompt = `You are the OpenSea agent for MarkeCPrivacy hackathon. You have COMPLETE access to all project data and live OpenSea blockchain data.
 
 COMPLETE PROJECT DATABASE:
 ${allTeamsData}
