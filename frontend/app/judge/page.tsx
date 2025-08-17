@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AuthGuard from "@/components/auth-guard";
 import AIAssistantPanel from "@/components/ai-assistant-panel";
 import ProjectScoring from "@/components/project-scoring";
@@ -52,6 +52,12 @@ export default function JudgePage() {
     judgingEnded?: boolean;
     winnersAnnounced?: boolean;
   } | null>(null);
+
+  // Lightweight cache for brief summaries keyed by project ID
+  const [projectSummaries, setProjectSummaries] = useState<
+    Record<string, string>
+  >({});
+  const prefetchedSummaryIdsRef = useRef<Set<string>>(new Set());
 
   // Separate projects into categories
   const pendingProjects = projects.filter((p) => !p.isJudged);
@@ -185,6 +191,78 @@ export default function JudgePage() {
 
     fetchProjects();
   }, [isLoggedIn, user]);
+
+  // Prefetch brief AI summaries for all visible projects once authenticated
+  useEffect(() => {
+    async function prefetchSummaries() {
+      if (!isLoggedIn || !user || projects.length === 0) return;
+
+      const token = getAuthToken();
+      if (!token) return;
+
+      // Limit concurrency to avoid spamming the API
+      const concurrency = 3;
+      const queue = projects.filter(
+        (p) => !prefetchedSummaryIdsRef.current.has(p.id)
+      );
+      if (queue.length === 0) return;
+
+      let index = 0;
+
+      const runNext = async () => {
+        const current = index++;
+        if (current >= queue.length) return;
+        const project = queue[current];
+
+        // Mark as in-progress to avoid duplicate requests
+        prefetchedSummaryIdsRef.current.add(project.id);
+
+        try {
+          const payload = {
+            action: "analyze_project",
+            project: {
+              name: project.name,
+              description: project.description,
+              project_url: project.project_url,
+              submitter: project.submitter,
+              tokenId: project.tokenId,
+              ipfsURI: project.ipfsURI,
+            },
+          };
+
+          const response = await fetch("/api/agent/message", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+          const summary: string | undefined = data?.analysis?.summary;
+
+          if (summary && typeof summary === "string") {
+            setProjectSummaries((prev) => ({ ...prev, [project.id]: summary }));
+          }
+        } catch {
+          // Silently ignore summary errors; UI will simply not show a brief summary
+        } finally {
+          // Kick off next item in the queue
+          await runNext();
+        }
+      };
+
+      // Start limited concurrent workers
+      const workers = Array.from(
+        { length: Math.min(concurrency, queue.length) },
+        () => runNext()
+      );
+      await Promise.all(workers);
+    }
+
+    prefetchSummaries();
+  }, [isLoggedIn, user, projects]);
 
   // Check if judging has ended - block access
   if (competitionStatus?.judgingEnded) {
@@ -458,6 +536,15 @@ export default function JudgePage() {
                       </div>
                     </CardHeader>
                     <CardContent>
+                      {/* Brief AI-generated summary shown above full description */}
+                      {selectedProject &&
+                        projectSummaries[selectedProject.id] && (
+                          <div className="mb-4 p-3 rounded-md bg-muted">
+                            <p className="text-sm font-medium leading-relaxed line-clamp-2">
+                              {projectSummaries[selectedProject.id]}
+                            </p>
+                          </div>
+                        )}
                       <MarkdownRenderer
                         content={selectedProject.description}
                         className="text-muted-foreground"
