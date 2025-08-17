@@ -17,19 +17,19 @@ export default function Home() {
 
       <Image
         src="/img/logo.png"
-        alt="Unified DJ Logo"
+        alt="MarkeCPrivacy Logo"
         width={240}
         height={240}
         priority
         className="mb-2"
       />
       <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
-        Unified&nbsp;DJ
+        MarkeCPrivacy
       </h1>
 
       {/* Tagline */}
       <p className="text-lg md:text-2xl text-muted-foreground max-w-xl">
-        Decentralized Judging for Hackathons & Web3 Competitions
+        Where private judging creates queryable innovation insights
       </p>
       <div className="flex flex-wrap justify-center gap-4 mt-6">
         <Button asChild size="lg">
