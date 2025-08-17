@@ -22,7 +22,8 @@ class IntelligentOpenSeaAgent {
   // Persistent SSE reader to receive tool results
   private sseActive: boolean = false;
   private sseController: AbortController | null = null;
-  private sseResultWaiters: Map<number, (data: string) => void> = new Map();
+  private sseResultWaiters: Map<string, (data: string) => void> = new Map();
+  private rpcCounter: number = 0;
 
   constructor(private config: IntelligentOpenSeaAgentConfig = {}) {
     // Initialize LLM
@@ -50,7 +51,7 @@ class IntelligentOpenSeaAgent {
 
   async processMessage(
     message: string,
-    _context: Record<string, unknown> = {}
+    _context?: Record<string, unknown>
   ): Promise<string> {
     try {
       // Get leaderboard data for context
@@ -496,39 +497,65 @@ General Instructions:
     decoder: TextDecoder,
     initialBuffer: string
   ): Promise<void> {
-    let buffer = initialBuffer;
+    let leftover = initialBuffer;
+    let currentDataLines: string[] = [];
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
+        const chunkText = decoder.decode(value, { stream: true });
+        const text = leftover + chunkText;
+        const lines = text.split(/\r?\n/);
+        leftover = lines.pop() ?? ""; // keep the last partial line as leftover
         for (const line of lines) {
-          if (line.startsWith("event: message")) {
+          if (line.startsWith("event:")) {
+            // If we were accumulating a previous event, finalize it first
+            if (currentDataLines.length > 0) {
+              const dataStr = currentDataLines.join("\n");
+              try {
+                const evt = JSON.parse(dataStr);
+                if (evt && evt.id !== undefined) {
+                  const waiterKey = String(evt.id);
+                  const waiter = this.sseResultWaiters.get(waiterKey);
+                  if (waiter) {
+                    this.sseResultWaiters.delete(waiterKey);
+                    waiter(JSON.stringify(evt));
+                  }
+                }
+              } catch {
+                // ignore non-JSON events
+              }
+            }
+            currentDataLines = [];
             continue;
           }
           if (line.startsWith("data:")) {
-            const raw = line.substring(5).trim();
-            try {
-              const evt = JSON.parse(raw);
-              if (
-                evt &&
-                typeof evt.id === "number" &&
-                (evt.result !== undefined || evt.error)
-              ) {
-                const waiter = this.sseResultWaiters.get(evt.id);
-                if (waiter) {
-                  this.sseResultWaiters.delete(evt.id);
-                  waiter(JSON.stringify(evt.result ?? evt.error));
+            const datum = line.substring(5).trim();
+            currentDataLines.push(datum);
+            continue;
+          }
+          // Empty line indicates end of one SSE event
+          if (line.trim() === "") {
+            if (currentDataLines.length > 0) {
+              const dataStr = currentDataLines.join("\n");
+              try {
+                const evt = JSON.parse(dataStr);
+                if (evt && evt.id !== undefined) {
+                  const waiterKey = String(evt.id);
+                  const waiter = this.sseResultWaiters.get(waiterKey);
+                  if (waiter) {
+                    this.sseResultWaiters.delete(waiterKey);
+                    waiter(JSON.stringify(evt));
+                  }
                 }
+              } catch {
+                // ignore non-JSON events
               }
-            } catch {
-              // ignore non-JSON events
             }
+            // reset for next event
+            currentDataLines = [];
           }
         }
-        // Keep buffer from growing unbounded
-        if (buffer.length > 100_000) buffer = buffer.slice(-10_000);
       }
     } catch (err) {
       console.error("[OpenSea Agent] SSE loop error:", err);
@@ -610,7 +637,7 @@ If no OpenSea data needed, return: []`;
     for (const toolCall of tools) {
       const payload = {
         jsonrpc: "2.0",
-        id: Date.now(),
+        id: `${Date.now()}-${++this.rpcCounter}`,
         method: "tools/call",
         params: {
           name: toolCall.tool,
@@ -658,13 +685,13 @@ If no OpenSea data needed, return: []`;
         console.log(`[OpenSea Agent] Headers:`, headers);
 
         // Register waiter to capture SSE result for this id
-        const rpcId = payload.id as number;
+        const rpcId = String(payload.id);
         const resultPromise: Promise<string> = new Promise(
           (resolve, reject) => {
             const timeout = setTimeout(() => {
               this.sseResultWaiters.delete(rpcId);
               reject(new Error("Timed out waiting for MCP result over SSE"));
-            }, 15000); // Increased timeout to 15 seconds
+            }, 60000); // Increased timeout to 60 seconds to allow MCP processing
             this.sseResultWaiters.set(rpcId, (data: string) => {
               clearTimeout(timeout);
               resolve(data);
@@ -708,14 +735,24 @@ If no OpenSea data needed, return: []`;
             `[OpenSea Agent] Raw SSE result for parsing:`,
             sseResult.substring(0, 500)
           );
-          const parsed: any = JSON.parse(sseResult);
+          if (sseResult.trim() === "Accepted") {
+            console.log(
+              `[OpenSea Agent] Skipping non-JSON response: "Accepted"`
+            );
+            // Nothing to parse
+          }
+          const parsed: any =
+            sseResult.trim() === "Accepted" ? null : JSON.parse(sseResult);
           console.log(
             `[OpenSea Agent] Parsed structure keys:`,
-            Object.keys(parsed)
+            parsed ? Object.keys(parsed) : []
           );
 
           // Handle nested content structure: {"content":[{"type":"text","text":"..."}]}
-          let actualData = parsed;
+          let actualData =
+            parsed && parsed.result !== undefined
+              ? parsed.result
+              : parsed ?? {};
           if (
             parsed?.content &&
             Array.isArray(parsed.content) &&
