@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import { NFTMetadataUpdater } from "@/lib/nft-metadata-updater";
+import { getUnifiedDJAgent } from "@/lib/langchain-agent";
 
 if (!supabaseAdmin) {
   throw new Error(
@@ -42,19 +42,28 @@ export async function POST(
       if (error) throw error;
     }
 
-    // Update NFT metadata to reflect finalist status change
+    // Update NFT metadata to reflect finalist status change via LangChain agent
     try {
-      const metadataUpdater = new NFTMetadataUpdater();
-      await metadataUpdater.updateFinalistStatus(projectId, isTop20);
+      const agent = getUnifiedDJAgent({
+        aiApiKey: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY,
+        aiProvider: process.env.GEMINI_API_KEY ? "gemini" : "openai",
+        flowRpcUrl: process.env.FLOW_EVM_RPC,
+        flowPrivateKey: process.env.AGENT_PRIVATE_KEY,
+      });
+
+      // For individual project updates, we'll trigger a full metadata update
+      // This is simpler and ensures consistency across all NFTs
+      await agent.updateAllNFTMetadata();
       console.log(
-        `[Admin Top20] Updated NFT metadata for project ${projectId}`
+        `[Admin Top20] Successfully triggered NFT metadata update for project ${projectId} (finalist: ${isTop20})`
       );
     } catch (metadataError) {
       console.error(
-        `[Admin Top20] Failed to update NFT metadata:`,
+        `[Admin Top20] Failed to update NFT metadata for project ${projectId}:`,
         metadataError
       );
       // Continue - database update succeeded even if NFT update failed
+      // This is non-critical - the database state is what matters for the application
     }
 
     return NextResponse.json({ success: true });
