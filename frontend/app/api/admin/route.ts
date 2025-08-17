@@ -78,12 +78,11 @@ export async function POST(request: NextRequest) {
 
       try {
         // Push updated metadata on-chain via intelligent agent
-        const agent = getIntelligentOpenSeaAgent();
-        // This helper will iterate through leaderboard and push metadata.
-        // For now we call a placeholder method; implement actual contract logic inside the agent.
-        if ((agent as any).pushUpdatedMetadata) {
-          await (agent as any).pushUpdatedMetadata();
-        }
+        const agent = getIntelligentOpenSeaAgent({
+          aiApiKey: process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY,
+          aiProvider: process.env.GEMINI_API_KEY ? "gemini" : "openai",
+        });
+        await agent.pushUpdatedMetadata();
       } catch (e) {
         console.error("[Admin] Failed to push metadata on-chain", e);
       }
