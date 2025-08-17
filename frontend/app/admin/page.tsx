@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import AuthGuard from "@/components/auth-guard";
 import {
   Button,
@@ -8,8 +8,17 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
 } from "@/components/ui";
 import WalletInfoBar from "@/components/wallet-info-bar";
+import {
+  getAuthToken,
+  useDynamicContext,
+  useIsLoggedIn,
+} from "@dynamic-labs/sdk-react-core";
 import {
   Check,
   X,
@@ -37,10 +46,20 @@ interface ProjectData {
 }
 
 export default function AdminPage() {
+  const { user } = useDynamicContext();
+  const isLoggedIn = useIsLoggedIn();
   const [status, setStatus] = useState<CompetitionStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectData | null>(
+    null
+  );
+  const [projectSummaries, setProjectSummaries] = useState<
+    Record<string, string>
+  >({});
+  const prefetchedSummaryIdsRef = useRef<Set<string>>(new Set());
   const [progressSteps, setProgressSteps] = useState<
     {
       id: string;
@@ -118,6 +137,72 @@ export default function AdminPage() {
       fetchProjects();
     }
   }, [status, fetchProjects]);
+
+  // Prefetch AI summaries for admin-visible projects
+  useEffect(() => {
+    async function prefetchSummaries() {
+      if (!isLoggedIn || !user || projects.length === 0) return;
+
+      const token = getAuthToken();
+      if (!token) return;
+
+      const concurrency = 3;
+      const queue = projects.filter(
+        (p) => !prefetchedSummaryIdsRef.current.has(p.id)
+      );
+      if (queue.length === 0) return;
+
+      let index = 0;
+
+      const runNext = async (): Promise<void> => {
+        const current = index++;
+        if (current >= queue.length) return;
+        const project = queue[current];
+
+        prefetchedSummaryIdsRef.current.add(project.id);
+        try {
+          const payload = {
+            action: "analyze_project",
+            project: {
+              name: project.name,
+              description: project.description,
+              project_url: project.project_url,
+              submitter: "admin",
+              tokenId: "",
+              ipfsURI: "",
+            },
+          };
+
+          const response = await fetch("/api/agent/message", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+          const summary: string | undefined = data?.analysis?.summary;
+          if (summary && typeof summary === "string") {
+            setProjectSummaries((prev) => ({ ...prev, [project.id]: summary }));
+          }
+        } catch {
+          // ignore
+        } finally {
+          await runNext();
+        }
+      };
+
+      const workers = Array.from(
+        { length: Math.min(concurrency, queue.length) },
+        () => runNext()
+      );
+      await Promise.all(workers);
+    }
+
+    prefetchSummaries();
+  }, [isLoggedIn, user, projects]);
 
   // Handlers for admin actions
   const handleStartJudging = async () => {
@@ -265,6 +350,25 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  // Produce a brief 1–2 sentence summary (max ~160 chars)
+  const getBriefSummary = (text: string): string => {
+    if (!text) return "";
+    const brief = text
+      .split(/(?<=[.!?])\s+/)
+      .slice(0, 2)
+      .join(" ")
+      .slice(0, 160);
+    return brief;
+  };
+
+  // Ensure AI output is no more than two sentences
+  const limitToTwoSentences = (text: string): string => {
+    if (!text) return "";
+    const normalized = text.replace(/\s+/g, " ").trim();
+    const parts = normalized.split(/(?<=[.!?])\s+/);
+    return parts.slice(0, 2).join(" ");
   };
 
   return (
@@ -425,7 +529,13 @@ export default function AdminPage() {
                 {projects.map((project) => (
                   <Card
                     key={project.id}
-                    className={project.isTop20 ? "border-yellow-400" : ""}
+                    className={`${
+                      project.isTop20 ? "border-yellow-400" : ""
+                    } cursor-pointer`}
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setDetailOpen(true);
+                    }}
                   >
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
@@ -438,14 +548,30 @@ export default function AdminPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
-                      <p className="line-clamp-3 text-muted-foreground">
-                        {project.description}
-                      </p>
+                      {projectSummaries[project.id] ? (
+                        <div className="rounded-lg border border-amber-200/60 dark:border-amber-900/50 bg-gradient-to-br from-amber-50/60 to-yellow-50/40 dark:from-amber-900/10 dark:to-yellow-900/10 p-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide mb-1 text-amber-800 dark:text-amber-300">
+                            AI Summary
+                          </div>
+                          <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed line-clamp-2">
+                            {limitToTwoSentences(projectSummaries[project.id])}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="line-clamp-2 text-muted-foreground">
+                          {getBriefSummary(project.description)}
+                        </p>
+                      )}
                       <p className="font-medium">
                         Score: {project.totalScore ?? "N/A"}
                       </p>
                       <div className="flex gap-2 mt-2 flex-wrap">
-                        <Button size="sm" variant="secondary" asChild>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          asChild
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <a
                             href={project.project_url}
                             target="_blank"
@@ -457,9 +583,10 @@ export default function AdminPage() {
 
                         <Button
                           size="sm"
-                          onClick={() =>
-                            toggleTop20(project.id, !project.isTop20)
-                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTop20(project.id, !project.isTop20);
+                          }}
                           variant={project.isTop20 ? "outline" : "default"}
                         >
                           {project.isTop20 ? (
@@ -480,6 +607,87 @@ export default function AdminPage() {
             )}
           </div>
         )}
+        {/* Detail Sheet */}
+        <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+          <SheetContent
+            side="right"
+            className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl"
+          >
+            <div className="flex h-full flex-col">
+              <SheetHeader>
+                <SheetTitle>
+                  {selectedProject &&
+                    `#${selectedProject.teamId} – ${selectedProject.name}`}
+                </SheetTitle>
+              </SheetHeader>
+              {selectedProject && (
+                <div className="mt-4 flex-1 overflow-y-auto pr-1 space-y-4 text-sm">
+                  <div className="text-muted-foreground">
+                    <span className="font-medium">Score:</span>{" "}
+                    {selectedProject.totalScore ?? "N/A"}
+                    {selectedProject.isTop20 && (
+                      <span className="ml-2 text-yellow-600 dark:text-yellow-400">
+                        • Top 20
+                      </span>
+                    )}
+                  </div>
+
+                  {/* AI brief summary bubble */}
+                  {projectSummaries[selectedProject.id] && (
+                    <div className="rounded-lg border border-amber-200/60 dark:border-amber-900/50 bg-gradient-to-br from-amber-50/60 to-yellow-50/40 dark:from-amber-900/10 dark:to-yellow-900/10 p-3">
+                      <div className="flex items-center gap-2 mb-1 text-amber-800 dark:text-amber-300">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M5 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" />
+                        </svg>
+                        <span className="text-xs font-semibold tracking-wide uppercase">
+                          AI Summary
+                        </span>
+                      </div>
+                      <p className="text-sm text-amber-900 dark:text-amber-200 leading-relaxed">
+                        {limitToTwoSentences(
+                          projectSummaries[selectedProject.id]
+                        )}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Full Description
+                    </div>
+                    <p className="text-muted-foreground whitespace-pre-wrap">
+                      {selectedProject.description}
+                    </p>
+                  </div>
+                  <div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <a
+                        href={selectedProject.project_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        View Project
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </AuthGuard>
   );
