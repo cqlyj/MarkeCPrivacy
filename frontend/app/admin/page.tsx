@@ -10,7 +10,15 @@ import {
   CardTitle,
 } from "@/components/ui";
 import WalletInfoBar from "@/components/wallet-info-bar";
-import { Check, X, Trophy, Zap } from "lucide-react";
+import {
+  Check,
+  X,
+  Trophy,
+  Zap,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
 
 interface CompetitionStatus {
   judgingStarted: boolean;
@@ -33,6 +41,14 @@ export default function AdminPage() {
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
+  const [progressSteps, setProgressSteps] = useState<
+    {
+      id: string;
+      title: string;
+      status: "pending" | "in_progress" | "completed" | "error";
+      description?: string;
+    }[]
+  >([]);
 
   // Fetch competition status
   const fetchStatus = useCallback(async () => {
@@ -139,15 +155,102 @@ export default function AdminPage() {
   };
 
   const handleAnnounceWinners = async () => {
+    // Initialize progress steps
+    const steps = [
+      {
+        id: "announce",
+        title: "Announcing Winners",
+        status: "pending" as const,
+        description: "Making scores public in database",
+      },
+      {
+        id: "fetch_projects",
+        title: "Fetching Finalist Data",
+        status: "pending" as const,
+        description: "Getting project and score information",
+      },
+      {
+        id: "setup_blockchain",
+        title: "Connecting to Blockchain",
+        status: "pending" as const,
+        description: "Setting up Flow EVM connection",
+      },
+      {
+        id: "update_metadata",
+        title: "Updating NFT Metadata",
+        status: "pending" as const,
+        description: "Updating metadata for all finalist NFTs",
+      },
+      {
+        id: "complete",
+        title: "Process Complete",
+        status: "pending" as const,
+        description: "All updates finished successfully",
+      },
+    ];
+    setProgressSteps(steps);
+
     try {
-      await fetch("/api/admin", {
+      // Start the process
+      setProgressSteps((prev) =>
+        prev.map((step) =>
+          step.id === "announce" ? { ...step, status: "in_progress" } : step
+        )
+      );
+
+      // Simulate progress updates during the API call
+      const progressTimer = setInterval(() => {
+        setProgressSteps((prev) => {
+          const currentInProgress = prev.find(
+            (s) => s.status === "in_progress"
+          );
+          if (!currentInProgress) return prev;
+
+          const currentIndex = prev.findIndex(
+            (s) => s.id === currentInProgress.id
+          );
+          if (currentIndex === -1 || currentIndex === prev.length - 1)
+            return prev;
+
+          return prev.map((step, index) => {
+            if (index === currentIndex)
+              return { ...step, status: "completed" as const };
+            if (index === currentIndex + 1)
+              return { ...step, status: "in_progress" as const };
+            return step;
+          });
+        });
+      }, 1500); // Update every 1.5 seconds
+
+      const response = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "announce_winners" }),
       });
-      fetchStatus();
+
+      clearInterval(progressTimer);
+
+      if (response.ok) {
+        // Mark all steps as completed
+        const completedSteps = steps.map((step) => ({
+          ...step,
+          status: "completed" as const,
+        }));
+        setProgressSteps(completedSteps);
+
+        // Clear progress after 8 seconds
+        setTimeout(() => setProgressSteps([]), 8000);
+        fetchStatus();
+      } else {
+        throw new Error("Failed to announce winners");
+      }
     } catch (err) {
       console.error(err);
+      setProgressSteps((prev) =>
+        prev.map((step) =>
+          step.status === "in_progress" ? { ...step, status: "error" } : step
+        )
+      );
     }
   };
 
@@ -169,6 +272,83 @@ export default function AdminPage() {
       <div className="container mx-auto p-6 space-y-8">
         <WalletInfoBar className="mb-6" />
         <h1 className="text-3xl font-bold mb-4">Admin Dashboard</h1>
+
+        {/* Progress Steps */}
+        {progressSteps.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-blue-500" />
+                Winner Announcement Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {progressSteps.map((step) => (
+                  <div
+                    key={step.id}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800"
+                  >
+                    <div className="flex-shrink-0">
+                      {step.status === "pending" && (
+                        <Clock className="h-5 w-5 text-gray-400" />
+                      )}
+                      {step.status === "in_progress" && (
+                        <Zap className="h-5 w-5 text-blue-500 animate-spin" />
+                      )}
+                      {step.status === "completed" && (
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                      )}
+                      {step.status === "error" && (
+                        <AlertCircle className="h-5 w-5 text-red-500" />
+                      )}
+                    </div>
+
+                    <div className="flex-grow">
+                      <div className="flex items-center justify-between">
+                        <h4
+                          className={`font-medium ${
+                            step.status === "completed"
+                              ? "text-green-700 dark:text-green-300"
+                              : step.status === "in_progress"
+                              ? "text-blue-700 dark:text-blue-300"
+                              : step.status === "error"
+                              ? "text-red-700 dark:text-red-300"
+                              : "text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
+                          {step.title}
+                        </h4>
+
+                        {step.status === "completed" && (
+                          <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                            ✓ Done
+                          </span>
+                        )}
+                        {step.status === "in_progress" && (
+                          <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded animate-pulse">
+                            ⟳ Processing...
+                          </span>
+                        )}
+                        {step.status === "error" && (
+                          <span className="text-xs bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 px-2 py-1 rounded">
+                            ✗ Failed
+                          </span>
+                        )}
+                      </div>
+
+                      {step.description && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {step.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Status & Control Buttons */}
         <Card>
