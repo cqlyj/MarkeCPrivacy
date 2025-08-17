@@ -281,7 +281,7 @@ export class UnifiedDJAgent {
 
     // Create the prompt template
     const prompt = ChatPromptTemplate.fromMessages([
-      new SystemMessage(`You are an AI agent for the Unified DJ hackathon judging platform. You help with:
+      new SystemMessage(`You are an AI agent for the MarkeCPrivacy hackathon judging platform. You help with:
 
 1. Project Analysis: Analyze project submissions, provide insights, and generate summaries
 2. Judge Assignment: Use Flow VRF to randomly assign judges to projects
@@ -345,7 +345,7 @@ You have access to tools for these operations. Always provide helpful, accurate 
     // Always try to use the AI model first, regardless of agent executor
     try {
       if (this.projectAnalyzer) {
-        const judgeContext = `You are an AI assistant for the UnifiedDJ hackathon judging platform. You help judges evaluate blockchain/Web3 projects.
+        const judgeContext = `You are an AI assistant for the MarkeCPrivacy hackathon judging platform. You help judges evaluate blockchain/Web3 projects.
 
 **JUDGING CRITERIA (Rate each 1-5):**
 1. 🔧 **Technology Innovation** (1-5): Technical sophistication, novel use of technology, implementation quality
@@ -390,7 +390,7 @@ Provide a helpful, detailed response about the project evaluation, scoring guida
     const project = context?.project as ProjectSubmission | undefined;
 
     // Scoring aspect information
-    const scoringAspects = `**UnifiedDJ Judging Criteria (1-5 scale each):**
+    const scoringAspects = `**MarkeCPrivacy Judging Criteria (1-5 scale each):**
 
 🔧 **Technology Innovation** (1-5): Technical sophistication, novel use of technology, and implementation quality
 ✅ **Project Completion** (1-5): How complete and functional the project is, demonstration readiness  
@@ -510,7 +510,7 @@ ${scoringAspects}`;
       lowerMessage.includes("judg") ||
       (lowerMessage.includes("how") && lowerMessage.includes("work"))
     ) {
-      return `# UnifiedDJ Judging Process
+      return `# MarkeCPrivacy Judging Process
 
 ${scoringAspects}
 
@@ -561,7 +561,7 @@ ${scoringAspects}
     }
 
     // Default helpful response
-    return `Hello! I'm your UnifiedDJ judging assistant. 
+    return `Hello! I'm your MarkeCPrivacy judging assistant. 
 
 ${
   project
